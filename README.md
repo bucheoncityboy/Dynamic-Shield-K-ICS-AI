@@ -241,7 +241,7 @@ trainer.train()
 - **시나리오**: 2015 중국발 폭락, 2018 금리인상, 2020 COVID, 2022 금리쇼크
 - **벤치마크**: 실제 보험사 헤지 전략 vs Dynamic Shield
 
-### Phase 5: 실시간 시스템 구축 (2-3주)
+### Phase 5: 실시간 시스템 구축(제안)
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  Production System                       │
@@ -272,5 +272,6 @@ trainer.train()
 | ML | scikit-learn, hmmlearn |
 | 시각화 | Matplotlib, TensorBoard |
 | 데이터 | NumPy, Pandas, SciPy |
+
 
 
