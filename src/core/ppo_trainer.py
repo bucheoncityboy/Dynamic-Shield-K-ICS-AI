@@ -217,11 +217,25 @@ class PPOTrainer:
         
         return eval_rewards, eval_kics_min
     
-    def save(self, path="models/ppo_kics"):
-        """모델 저장"""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+    def save(self, path=None):
+        """모델 저장
+        
+        기본 저장 경로: validation 폴더 (backtest.py와 같은 위치)
+        이렇게 하면 백테스트 시 모델 경로 참조 오류가 발생하지 않음
+        """
+        if path is None:
+            # validation 폴더에 직접 저장 (backtest.py와 같은 위치)
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            validation_dir = os.path.join(script_dir, '..', 'validation')
+            path = os.path.join(validation_dir, 'ppo_kics')
+        
+        # 경로에 디렉토리가 포함된 경우에만 생성
+        dir_path = os.path.dirname(path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
+        
         self.model.save(path)
-        print(f"\n[Saved] Model saved to {path}")
+        print(f"\n[Saved] Model saved to {os.path.abspath(path)}.zip")
     
     def load(self, path="models/ppo_kics"):
         """모델 불러오기"""
