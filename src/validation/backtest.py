@@ -1,36 +1,51 @@
 """
 Phase 5.4: Walk-Forward Backtesting & Performance Analysis
 ===========================================================
-Dynamic Shield v3.0의 정량적 성과 검증
+Dynamic Shield v3.0의 정량적 성과 검증 (Real AI Inference Ver.)
 - Walk-Forward Backtesting
 - 4가지 전략 비교
-- Stress Test (2008, 2020, 가상 시나리오)
-- 성과 지표: CAGR, MDD, Sharpe, RCR
+- **Real AI Inference (Auto-detect Model Path)**
 
 핵심 철학: Capital Optimization, not Prediction
-(환율 예측이 아닌 자본 최적화)
 """
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
-from sklearn.neural_network import MLPRegressor
-from sklearn.model_selection import train_test_split
-
-# Phase 1: K-ICS Engine 가져오기
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from core.kics_real import RatioKICSEngine
 
+# PPO 모델 로드를 위한 라이브러리
+try:
+    from stable_baselines3 import PPO
+    STABLE_BASELINES_AVAILABLE = True
+except ImportError:
+    STABLE_BASELINES_AVAILABLE = False
+    print("[WARNING] stable-baselines3 not installed. AI strategy will fall back to rule-based.")
+
+# Phase 1: K-ICS Engine 및 데이터 생성기 가져오기
+# 경로 설정: 현재 파일의 상위 상위 폴더를 path에 추가하여 core 모듈을 찾음
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    # 패키지 구조 내에서 실행될 때
+    from core.kics_real import RatioKICSEngine
+    from core.realistic_data import generate_market_scenario
+except ImportError:
+    # 단독 스크립트로 실행될 때 (같은 폴더에 파일이 있는 경우)
+    try:
+        from kics_real import RatioKICSEngine
+        from realistic_data import generate_market_scenario
+    except ImportError:
+        print("[ERROR] 필수 모듈(kics_real.py, realistic_data.py)을 찾을 수 없습니다.")
+        sys.exit(1)
 
 # ==========================================
-# 1. Strategy Definitions (전략 정의)
+# 1. Strategy Definitions (기존 함수형 전략)
 # ==========================================
 
 def strategy_100_hedge(vix, current_ratio):
-    """① 100% 완전 헤지 (기존 관행)"""
+    """① 100% 완전 헤지"""
     return 1.0
 
 def strategy_80_fixed(vix, current_ratio):
@@ -46,114 +61,101 @@ def strategy_rule_based(vix, current_ratio):
     else:
         return 0.5
 
-def strategy_dynamic_shield(vix, current_ratio):
-    """④ Dynamic Shield (AI + Regime 기반)"""
-    # Gradual adjustment based on regime
-    if vix >= 30:  # Panic
+# ④ Dynamic Shield (Mimic Logic) - 모델 로드 실패 시 폴백용
+def strategy_dynamic_shield_fallback(vix, current_ratio):
+    if vix >= 30:
         target = 1.0
         step = 0.15
         return min(current_ratio + step, target)
-    elif vix >= 20:  # Transition
+    elif vix >= 20:
         target = 0.7
         if current_ratio < target:
             return current_ratio + 0.05
         else:
             return current_ratio - 0.03
-    else:  # Normal
+    else:
         target = 0.4
         step = 0.05
         return max(current_ratio - step, target)
 
 
 # ==========================================
-# 2. Market Data Generator (시장 데이터 생성)
-# ==========================================
-
-# 현실적인 데이터 생성기 사용 (GARCH, Fat Tail, Swap Points)
-try:
-    from core.realistic_data import generate_market_scenario, RealisticMarketGenerator
-    USE_REALISTIC_DATA = True
-except ImportError:
-    USE_REALISTIC_DATA = False
-
-def generate_market_scenario_legacy(n_days=500, scenario='normal'):
-    """기존 단순 데이터 생성기 (백업용)"""
-    np.random.seed(42)
-    
-    if scenario == 'normal':
-        vix = np.random.normal(15, 3, n_days)
-        vix = np.clip(vix, 10, 25)
-        
-    elif scenario == '2008_crisis':
-        phase1 = np.random.normal(15, 2, 150)
-        phase2 = np.linspace(15, 80, 50) + np.random.normal(0, 5, 50)
-        phase3 = np.random.normal(60, 10, 100)
-        phase4 = np.linspace(60, 25, 100) + np.random.normal(0, 5, 100)
-        phase5 = np.random.normal(20, 3, 100)
-        vix = np.concatenate([phase1, phase2, phase3, phase4, phase5])
-        
-    elif scenario == '2020_pandemic':
-        phase1 = np.random.normal(14, 2, 200)
-        phase2 = np.linspace(14, 65, 30) + np.random.normal(0, 5, 30)
-        phase3 = np.linspace(65, 25, 70) + np.random.normal(0, 3, 70)
-        phase4 = np.random.normal(22, 4, 200)
-        vix = np.concatenate([phase1, phase2, phase3, phase4])
-        
-    elif scenario == 'stagflation':
-        vix = np.random.normal(35, 10, n_days)
-        vix = np.clip(vix, 20, 60)
-        
-    elif scenario == 'correlation_breakdown':
-        vix = np.abs(np.sin(np.linspace(0, 8*np.pi, n_days))) * 40 + 20
-        vix += np.random.normal(0, 5, n_days)
-        
-    else:
-        vix = np.random.normal(18, 5, n_days)
-    
-    fx = [1200]
-    for v in vix[:-1]:
-        if v > 30:
-            change = np.random.normal(5, 10)
-        elif v > 20:
-            change = np.random.normal(2, 5)
-        else:
-            change = np.random.normal(0, 3)
-        fx.append(fx[-1] + change)
-    
-    correlations = []
-    for v in vix:
-        if v >= 30:
-            corr = np.random.uniform(0.5, 0.9)
-        elif v >= 20:
-            corr = np.random.uniform(-0.2, 0.5)
-        else:
-            corr = np.random.uniform(-0.6, -0.2)
-        correlations.append(corr)
-    
-    return pd.DataFrame({
-        'VIX': vix[:len(fx)],
-        'FX': fx,
-        'Correlation': correlations[:len(fx)]
-    })
-
-
-# ==========================================
-# 3. Backtest Engine
+# 2. Backtest Engine (AI 추론 기능 강화)
 # ==========================================
 
 class BacktestEngine:
-    def __init__(self):
+    def __init__(self, model_filename="ppo_kics"):
         self.engine = RatioKICSEngine()
+        self.model = None
+        
+        # [핵심 변경] 모델 파일 자동 탐색 (현재 폴더 -> models 폴더 순)
+        if STABLE_BASELINES_AVAILABLE:
+            # 1. 확장자(.zip) 제거 (load 함수가 알아서 붙임)
+            if model_filename.endswith('.zip'):
+                model_filename = model_filename[:-4]
+            
+            # 2. 탐색 경로 후보
+            search_paths = [
+                model_filename,                 # 현재 폴더 (예: ppo_kics)
+                f"models/{model_filename}",     # models 하위 폴더
+                f"../models/{model_filename}"   # 상위 models 폴더
+            ]
+            
+            loaded_path = None
+            for path in search_paths:
+                if os.path.exists(path + ".zip"):
+                    try:
+                        self.model = PPO.load(path)
+                        loaded_path = path
+                        print(f"\n[Info] ✅ Real AI Model loaded successfully from: {path}.zip")
+                        break
+                    except Exception as e:
+                        print(f"[Warning] Failed to load found model at {path}: {e}")
+            
+            if self.model is None:
+                print(f"\n[Warning] ⚠️ Model file '{model_filename}.zip' not found in current or 'models/' directory.")
+                print("           -> Using 'Fallback Logic (Mimic)' instead.")
+        
         self.strategies = {
             '100% Hedge': strategy_100_hedge,
             '80% Fixed': strategy_80_fixed,
             'Rule-based': strategy_rule_based,
-            'Dynamic Shield': strategy_dynamic_shield
+            'Dynamic Shield': self.strategy_real_ai_inference # AI 메서드 연결
         }
         
+    def strategy_real_ai_inference(self, vix, current_ratio, correlation, scr_ratio):
+        """
+        [Real AI Inference]
+        학습된 신경망을 통해 행동을 결정합니다.
+        입력 상태(State) 구성은 gym_environment.py와 100% 일치해야 합니다.
+        """
+        # 모델이 없으면 기존 하드코딩 로직(Fallback) 사용
+        if self.model is None:
+            return strategy_dynamic_shield_fallback(vix, current_ratio)
+
+        # 1. State 구성 (gym_environment.py의 _get_obs 참조)
+        # [hedge_ratio, vix_norm, corr_norm, scr_ratio]
+        obs = np.array([
+            current_ratio,                  
+            np.clip(vix / 100.0, 0, 1),     
+            np.clip((correlation + 1) / 2, 0, 1), 
+            np.clip(scr_ratio, 0, 1)        
+        ], dtype=np.float32)
+
+        # 2. AI 예측 (Deterministic=True: 확률적 탐색 배제)
+        action, _ = self.model.predict(obs, deterministic=True)
+
+        # 3. Action 해석 (gym_environment.py의 step 참조)
+        # Action space [-1, 1] -> Change [-0.1, 0.1]
+        hedge_change = float(action[0]) * 0.1
+        
+        new_ratio = np.clip(current_ratio + hedge_change, 0.0, 1.0)
+        return new_ratio
+
     def run_backtest(self, market_data, strategy_name):
         """단일 전략 백테스트"""
         strategy_func = self.strategies[strategy_name]
+        is_ai_strategy = (strategy_name == 'Dynamic Shield')
         
         results = []
         current_ratio = 0.5  # 초기 헤지 비율
@@ -162,23 +164,34 @@ class BacktestEngine:
             vix = row['VIX']
             corr = row['Correlation']
             
-            # 전략에 따른 헤지 비율 결정
-            new_ratio = strategy_func(vix, current_ratio)
+            # 현재 상태 SCR 계산 (AI 입력용)
+            current_scr = self.engine.calculate_scr_ratio_batch(
+                np.array([current_ratio]), 
+                np.array([corr])
+            )[0]
             
-            # SCR 계산
-            scr = self.engine.calculate_scr_ratio_batch(
+            # [전략 실행]
+            if is_ai_strategy:
+                # AI는 더 많은 상태 정보(Correlation, SCR)가 필요함
+                new_ratio = strategy_func(vix, current_ratio, corr, current_scr)
+            else:
+                # 기존 단순 전략들
+                new_ratio = strategy_func(vix, current_ratio)
+            
+            # 결과 기록용 SCR 재계산
+            final_scr = self.engine.calculate_scr_ratio_batch(
                 np.array([new_ratio]), 
                 np.array([corr])
             )[0]
             
-            # 헤지 비용 (헤지 비율에 비례, 간단화)
-            hedge_cost = new_ratio * 0.002  # 연 0.2%를 일 단위로 환산 근사
+            # 헤지 비용 (간단화: 연 0.2% 가정)
+            hedge_cost = new_ratio * 0.002 
             
             results.append({
                 'Day': i,
                 'VIX': vix,
                 'Hedge_Ratio': new_ratio,
-                'SCR_Ratio': scr,
+                'SCR_Ratio': final_scr,
                 'Hedge_Cost': hedge_cost,
                 'Correlation': corr
             })
@@ -196,62 +209,40 @@ class BacktestEngine:
 
 
 # ==========================================
-# 4. Performance Analyzer
+# 3. Performance Analyzer (기존 유지)
 # ==========================================
 
 class PerformanceAnalyzer:
     @staticmethod
     def calculate_metrics(results_df, initial_capital=10_000_000_000):
-        """
-        성과 지표 산출 (개선된 버전)
-        
-        수익 계산 로직:
-        - 자본 효율성 수익 = 절감된 요구자본 - 헤지 비용
-        - 100% 헤지 대비 절감된 요구자본을 수익으로 간주
-        """
         n_days = len(results_df)
-        
-        # 기준: 100% 헤지 시 평균 SCR (약 36%)
         baseline_scr = 0.36
         
-        # 일별 자본 효율성 수익 계산
-        # Capital Efficiency = (Baseline SCR - Strategy SCR) - Hedge Cost
-        # 이는 "100% 헤지 대비 절감한 자본 - 지불한 비용"을 의미
-        daily_capital_savings = (baseline_scr - results_df['SCR_Ratio']) * 0.01  # 스케일 조정
+        # 자본 효율성 수익
+        daily_capital_savings = (baseline_scr - results_df['SCR_Ratio']) * 0.01
         daily_hedge_cost = results_df['Hedge_Cost']
         daily_efficiency = daily_capital_savings - daily_hedge_cost
         
-        # 누적 수익률
         cumulative_returns = (1 + daily_efficiency).cumprod()
-        
-        # CAGR (연환산 수익률)
         total_return = cumulative_returns.iloc[-1] - 1
         cagr = (1 + total_return) ** (252 / n_days) - 1
-        
-        # Volatility (연환산)
         volatility = daily_efficiency.std() * np.sqrt(252)
         
-        # Sharpe Ratio (무위험 이자율 3% 가정)
-        # 0으로 나누기 방지
         risk_free_daily = 0.03 / 252
         excess_return = daily_efficiency.mean() - risk_free_daily
-        if volatility > 0.0001:  # 충분한 변동성이 있을 때만 계산
+        if volatility > 0.0001:
             sharpe = excess_return / (daily_efficiency.std() + 1e-8) * np.sqrt(252)
         else:
-            sharpe = 0.0  # 변동성이 거의 없으면 Sharpe = 0
+            sharpe = 0.0
         
-        # MDD (최대 낙폭)
         peak = cumulative_returns.expanding().max()
         drawdown = (cumulative_returns - peak) / (peak + 1e-8)
         mdd = drawdown.min()
         
-        # RCR (비용 대비 위험 감축 효율) - 핵심 지표
         avg_scr = results_df['SCR_Ratio'].mean()
         hedge_cost_total = results_df['Hedge_Cost'].sum() * initial_capital
         saved_capital = (baseline_scr - avg_scr) * initial_capital
         rcr = saved_capital / (hedge_cost_total + 1) if hedge_cost_total > 0 else 0
-        
-        # 총 비용 절감액 (백만원 단위)
         net_benefit = saved_capital - hedge_cost_total
         
         return {
@@ -260,22 +251,23 @@ class PerformanceAnalyzer:
             'Sharpe': sharpe,
             'MDD': mdd,
             'Avg_SCR': avg_scr,
-            'Total_Hedge_Cost': hedge_cost_total / 1e8,  # 억원 단위
-            'Net_Benefit': net_benefit / 1e8,  # 억원 단위
+            'Total_Hedge_Cost': hedge_cost_total / 1e8,
+            'Net_Benefit': net_benefit / 1e8,
             'RCR': rcr
         }
 
 
 # ==========================================
-# 5. Report Generator
+# 4. Main Execution
 # ==========================================
 
 def run_full_analysis():
     print("=" * 60)
-    print("Phase 4: Backtesting & Performance Analysis")
+    print("Phase 5.4: Backtesting & Performance Analysis (With Real AI)")
     print("=" * 60)
     
-    engine = BacktestEngine()
+    # 모델 파일이 같은 폴더에 있다면 "ppo_kics"만 입력하면 됨 (확장자 자동 처리)
+    engine = BacktestEngine(model_filename="ppo_kics")
     analyzer = PerformanceAnalyzer()
     
     scenarios = ['normal', '2008_crisis', '2020_pandemic', 'stagflation', 'correlation_breakdown']
@@ -293,14 +285,12 @@ def run_full_analysis():
             metrics['Strategy'] = strategy_name
             all_metrics.append(metrics)
             
-    # Summary Table
     summary_df = pd.DataFrame(all_metrics)
     
     print("\n" + "=" * 60)
     print("Performance Summary (All Scenarios)")
     print("=" * 60)
     
-    # Pivot by Strategy
     pivot = summary_df.groupby('Strategy').agg({
         'CAGR': 'mean',
         'Sharpe': 'mean',
@@ -312,52 +302,38 @@ def run_full_analysis():
     
     print(pivot.to_string())
     
-    # Winner Analysis
-    print("\n[Winner by Metric]")
-    print(f"  Best CAGR:   {pivot['CAGR'].idxmax()} ({pivot['CAGR'].max():.4f})")
-    print(f"  Best Sharpe: {pivot['Sharpe'].idxmax()} ({pivot['Sharpe'].max():.4f})")
-    print(f"  Best MDD:    {pivot['MDD'].idxmax()} ({pivot['MDD'].max():.4f})")  # least negative
-    print(f"  Best RCR:    {pivot['RCR'].idxmax()} ({pivot['RCR'].max():.4f})")
-    
     # Visualization
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    
     strategies = pivot.index.tolist()
     x = np.arange(len(strategies))
     
-    # CAGR
-    axes[0, 0].bar(x, pivot['CAGR'] * 100, color=['gray', 'blue', 'orange', 'green'])
-    axes[0, 0].set_xticks(x)
-    axes[0, 0].set_xticklabels(strategies, rotation=15)
-    axes[0, 0].set_title('Average CAGR (%)')
-    axes[0, 0].axhline(0, color='black', lw=0.5)
-    axes[0, 0].grid(axis='y', alpha=0.3)
+    metrics_to_plot = ['CAGR', 'Sharpe', 'MDD', 'RCR']
+    titles = ['Average CAGR (%)', 'Average Sharpe Ratio', 'Average MDD (%)', 'RCR (Risk-Cost Ratio)']
     
-    # Sharpe
-    axes[0, 1].bar(x, pivot['Sharpe'], color=['gray', 'blue', 'orange', 'green'])
-    axes[0, 1].set_xticks(x)
-    axes[0, 1].set_xticklabels(strategies, rotation=15)
-    axes[0, 1].set_title('Average Sharpe Ratio')
-    axes[0, 1].axhline(0, color='black', lw=0.5)
-    axes[0, 1].grid(axis='y', alpha=0.3)
-    
-    # MDD
-    axes[1, 0].bar(x, pivot['MDD'] * 100, color=['gray', 'blue', 'orange', 'green'])
-    axes[1, 0].set_xticks(x)
-    axes[1, 0].set_xticklabels(strategies, rotation=15)
-    axes[1, 0].set_title('Average MDD (%)')
-    axes[1, 0].grid(axis='y', alpha=0.3)
-    
-    # RCR (핵심 지표)
-    axes[1, 1].bar(x, pivot['RCR'], color=['gray', 'blue', 'orange', 'green'])
-    axes[1, 1].set_xticks(x)
-    axes[1, 1].set_xticklabels(strategies, rotation=15)
-    axes[1, 1].set_title('RCR (Risk-Cost Ratio) - KEY METRIC')
-    axes[1, 1].grid(axis='y', alpha=0.3)
-    
+    for i, ax in enumerate(axes.flat):
+        metric = metrics_to_plot[i]
+        vals = pivot[metric] * 100 if metric in ['CAGR', 'MDD'] else pivot[metric]
+        # 색상 매핑: AI 전략을 눈에 띄게 (초록색)
+        colors = []
+        for s in strategies:
+            if 'Dynamic' in s: colors.append('green')
+            elif '100' in s: colors.append('gray')
+            else: colors.append('blue')
+            
+        ax.bar(x, vals, color=colors)
+        ax.set_xticks(x)
+        ax.set_xticklabels(strategies, rotation=15)
+        ax.set_title(titles[i])
+        ax.grid(axis='y', alpha=0.3)
+        if metric in ['CAGR', 'Sharpe']:
+            ax.axhline(0, color='black', lw=0.5)
+            
     plt.tight_layout()
-    plt.suptitle('Phase 4: Strategy Comparison', y=1.02, fontsize=14, fontweight='bold')
+    plt.suptitle('Phase 5.4: Strategy Comparison (AI vs Traditional)', y=1.02, fontsize=14, fontweight='bold')
+    plt.savefig('backtest_result_ai.png', dpi=150)
     plt.show()
+    
+    print("\n[Saved] backtest_result_ai.png")
     
     return summary_df
 
