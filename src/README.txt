@@ -1,0 +1,20 @@
+Phase 1-4: Core 모듈 (순서대로)
+
+python src/core/kics_real.py           # Phase 1: K-ICS 엔진
+python src/core/kics_surrogate.py      # Phase 2.2: AI Surrogate
+python src/core/regime.py              # Phase 2.3: Regime Detection
+python src/core/system.py              # Phase 3: System Integration
+python src/core/ppo_trainer.py         # Phase 4: RL Training (PPO)
+
+Phase 5: Validation 모듈 (순서대로)
+
+python src/validation/proof_risk_paradox.py     # 5.1: Risk Paradox 증명
+python src/validation/solvency_visualizer.py    # 5.2: K-ICS 자본 적정성
+python src/validation/stress_safety.py          # 5.3: Safety Layer 테스트
+python src/validation/backtest.py               # 5.4: Walk-Forward Backtesting
+python src/validation/advanced_viz.py           # 5.5: XAI & Efficient Frontier
+python src/validation/shap_analysis.py          # 5.5: SHAP Why Not 분석
+
+Phase 6: Final Review
+
+python src/phase6_final_review.py               # 최종 점검
