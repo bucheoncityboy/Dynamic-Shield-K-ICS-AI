@@ -200,15 +200,9 @@
 ### 1. 환경 설정
 ```bash
 # Conda 환경 생성 (Python 3.11 권장)
-conda create -n quant python=3.11 pytorch cpuonly -c pytorch -y
-conda activate quant
 
 # 의존성 설치
 pip install stable-baselines3 gymnasium hmmlearn scikit-learn matplotlib pandas numpy scipy
-
-# Jupyter 커널 등록 (선택)
-python -m ipykernel install --user --name quant --display-name "(Quant)"
-```
 
 ### 2. 전체 파이프라인 실행
 ```bash
@@ -334,3 +328,4 @@ tensorboard --logdir=./tensorboard_logs/
 ### Phase 2: 모델 개선
 - **더 긴 학습**: 500,000+ timesteps
 - **추가 시나리오**: 2015 중국발 폭락, 2018 금리인상, 2022 금리쇼크
+
