@@ -149,30 +149,27 @@ class RatioKICSEngine:
         
         available_capital = self.initial_assets - self.initial_liabilities
         
-    
         # 주식 리스크 (충격 30%)
         risk_equity = self.initial_assets * self.w_equity * 0.30
         
         # 외환 리스크 (충격 10%, 헤지된 부분은 리스크 감소)
         risk_fx = self.initial_assets * self.w_fx * (1 - hedge_ratios) * 0.10
         
+        # 상관관계에 따른 리스크 조정
+        # 높은 상관관계(Panic) -> 리스크 증가, 낮은 상관관계(Normal) -> 분산 효과
+        correlation_factor = 1.0 + 0.5 * correlations  # -0.5 ~ 1.45 범위
+        
         # 금리 리스크 (듀레이션 갭 기반)
         dur_gap = 2.0  # 10년(부채) - 8년(자산)
         risk_rate = self.initial_assets * self.w_bond * dur_gap * 0.01
-
-        # 통합 리스크 계산 (K-ICS 표준모형 방식: 제곱근 합산)
-        # Risk = sqrt(R_eq^2 + R_fx^2 + 2*rho*R_eq*R_fx) + R_rate (금리는 보수적으로 단순 합산 가정)
-        # 실제 K-ICS에서는 금리도 상관계수 행렬에 포함되지만, 여기서는 주식-환율 효과 증명에 집중
         
-        market_risk_sq = (risk_equity ** 2) + (risk_fx ** 2) + (2 * correlations * risk_equity * risk_fx)
-        market_risk = np.sqrt(np.maximum(market_risk_sq, 0)) # 음수 방지
-        
-        total_risk = market_risk + risk_rate
+        # 통합 리스크 (상관관계 반영)
+        total_risk = (risk_equity + risk_fx + risk_rate) * correlation_factor
         total_risk = np.maximum(total_risk, 1e-6)  # 0 방지
         
-        # SCR 비율 계산 후 0~1 범위로 정규화 (실제로는 % 단위가 더 직관적이나 기존 로직 유지)
+        # SCR 비율 계산 후 0~1 범위로 정규화
         scr_ratios = available_capital / total_risk
-        # scr_ratios = np.clip(scr_ratios, 0, 10) # 상한 제거 또는 완화
-
+        scr_ratios = np.clip(scr_ratios, 0, 10)  # 상한 설정
+        scr_ratios = scr_ratios / 10  # 0~1로 정규화
         
         return scr_ratios
