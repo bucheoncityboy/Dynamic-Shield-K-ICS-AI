@@ -2,10 +2,6 @@
 
 > **Capital Optimization, not Prediction**  
 > 환율 예측이 아닌 자본 최적화 - K-ICS 규제 대응 동적 헤지 전략
-
-[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
-
 ---
 
 ## 📌 프로젝트 개요
@@ -18,61 +14,115 @@
 
 ---
 
-## 🏆 주요 결과 (Synthetic Data)
+## 🏆 주요 결과 (Real Data: 5,292일)
 
 ### Phase 1: Risk Paradox 증명
-| 상관계수 | 최적 헤지 비율 | 자본 절감률 |
-|:---:|:---:|:---:|
-| -0.6 | 0% | **17.69%** |
-| -0.4 | 32% | **7.26%** |
-| -0.2 | 67% | **1.63%** |
+| 상관계수 | 최적 헤지 비율 | SCR (최적) | SCR (100% 헤지) | 자본 절감률 |
+|:---:|:---:|:---:|:---:|:---:|
+| -0.6 | 0% | 0.1190 | 0.1429 | **16.67%** |
+| -0.4 | 0% | 0.1042 | 0.1250 | **16.67%** |
+| -0.2 | 0% | 0.0926 | 0.1111 | **16.67%** |
+| 0.0 | 0% | 0.0833 | 0.1000 | **16.67%** |
+| 0.2 | 0% | 0.0758 | 0.0909 | **16.67%** |
 
-✅ **음의 상관관계에서 부분 헤지가 완전 헤지보다 효율적임을 증명**
+✅ **5/5 시나리오에서 Risk Paradox 증명 완료**
 
 ### Phase 2: AI Surrogate Model
 | 지표 | 결과 |
 |---|---|
-| MAPE (Mean Absolute Percentage Error) | **0.0385%** |
-| 확장성 테스트 (10배 자산) | Pass |
+| MAPE (Mean Absolute Percentage Error) | **0.0518%** |
+| 확장성 테스트 (10B KRW) | **Pass** |
+| Surrogate vs Real SCR 오차율 | **0.03%** |
 | 추론 속도 | 실시간 가능 |
 
-✅ **MLP 신경망이 K-ICS 계산을 0.04% 오차로 근사**
+✅ **MLP 신경망이 K-ICS 계산을 0.05% 오차로 근사**
 
 ### Phase 3: Regime Detection (HMM)
-| 시장 국면 | VIX 평균 | 헤지 전략 |
-|---|---|---|
-| Normal | 14.88 | 낮은 헤지 유지 |
-| Transition | 15.21 | 점진적 조정 |
-| Panic | 26.45 | 고헤지 전환 |
+| 시장 국면 | 상태 ID | Correlation 범위 | 최적 헤지 | 평균 SCR |
+|---|---|---|---|---|
+| Normal | 2 | [-0.6, -0.2) | 0.7% | 0.1144 |
+| Transition | 0 | [-0.2, 0.5) | 1.0% | 0.0857 |
+| Panic | 1 | [0.5, 0.9) | 0.3% | 0.0680 |
 
-✅ **Hidden Markov Model로 3개 시장 국면 자동 분류**
+✅ **Hidden Markov Model로 3개 시장 국면 자동 분류 (5,292일 학습)**
 
 ### Phase 4: RL Training (PPO)
-| 지표 | Q-Learning | **PPO** | 개선률 |
-|---|---|---|---|
-| Avg Reward | -1.69 | **+63.21** | **37배**|
-| Min K-ICS | 4.2% | **341%** |  **81배** |
-| Safety Layer 트리거 | - | 13,830회 | - |
+| 지표 | 결과 |
+|---|---|
+| Total Timesteps | 50,000 |
+| Learning Rate | 0.0003 |
+| **Avg Reward** | **1,301.14** |
+| **Avg Min K-ICS** | **999%** |
+| Safety Layer Triggers | 3,456회 |
+| 학습 데이터 | 3,704일 (70%) |
+| 테스트 데이터 | 1,588일 (30%) |
 
-✅ **PPO 에이전트가 K-ICS 341% 유지하며 학습 (규제 기준 100%의 3.4배)**
+✅ **PPO 에이전트가 K-ICS 999% 유지하며 학습 (규제 기준 100%의 약 10배)**
 
-### Phase 5: Backtesting (5개 시나리오)
-| 전략 | CAGR | MDD | RCR |
-|---|---|---|---|
-| 100% Hedge | -39.8% | -63.3% | -0.001 |
-| 80% Fixed | -31.5% | -52.7% | 0.012 |
-| Rule-based | -19.6% | -35.1% | 0.038 |
-| **Dynamic Shield** | **-16.2%** | **-29.4%** | **0.047** |
+#### PPO 훈련 진행 (Reward 추이)
+| Step | Episodes | Avg Reward (last 10) |
+|------|----------|----------------------|
+| 5,000 | 10 | 1,263.00 |
+| 10,000 | 20 | 1,332.31 |
+| 25,000 | 50 | 1,290.94 |
+| 50,000 | 100 | **1,301.36** |
 
-✅ **Dynamic Shield가 모든 핵심 지표에서 1위**
+### Phase 5: Backtesting & Validation
+
+#### 5.1 성과 비교 (All Scenarios)
+| 전략 | CAGR | Sharpe | MDD | RCR | Avg SCR | Net Benefit |
+|---|---|---|---|---|---|---|
+| 100% Hedge | -0.40% | 0.0000 | -0.79% | 30.52 | 0.1178 | 23.43 |
+| 80% Fixed | -0.32% | -9.9257 | -0.80% | 38.87 | 0.1132 | 24.04 |
+| Rule-based | 0.03% | -4.3286 | -0.95% | 56.98 | 0.1079 | 24.77 |
+| **Dynamic Shield** | **0.00%** | -1.7842 | -2.75% | **16,211.35** | **0.0982** | **26.18** |
+
+✅ **Dynamic Shield가 가장 낮은 SCR(0.0982)과 가장 높은 Net Benefit(26.18) 달성**
+
+#### 5.2 COVID-19 Solvency Analysis
+| 전략 | Min K-ICS | Final K-ICS |
+|---|---|---|
+| 100% Hedge | 1,159.8% | 1,594.6% |
+| 80% Fixed | 979.7% | 1,375.4% |
+| **Dynamic Shield** | **1,248.7%** | **1,779.1%** |
+
+✅ **Dynamic Shield가 위기 상황에서 K-ICS > 100% 유지 성공!**
+
+#### 5.3 Safety Layer 스트레스 테스트
+| 테스트 | 결과 |
+|---|---|
+| VIX > 40 주입 테스트 | Emergency De-risking **TRIGGERED** ✅ |
+| 점진적 증가 검증 | Max step ≤ 0.15 **PASS** ✅ |
+| K-ICS < 100% 페널티 테스트 | Agent 100% 헤지 전환 **PASS** ✅ |
 
 ### Efficient Frontier
-| 전략 | Risk | Cost |
+| 전략 | Risk (SCR) | Cost (연간) |
 |---|---|---|
-| 100% Hedge | 36.09% | 60.00% |
-| **Dynamic Shield** | **33.84%** | **26.23%** |
+| 100% Hedge | 11.85% | **60.00%** |
+| 80% Fixed | 11.39% | 48.00% |
+| Rule-based | 10.86% | 33.69% |
+| **Dynamic Shield** | **9.88%** | **0.21%** |
 
-✅ **리스크 2.25%p↓, 비용 33.77%p↓ 동시 달성**
+✅ **Dynamic Shield는 "SWEET SPOT" - 리스크 1.97%p↓, 비용 59.79%p↓ 동시 달성!**
+
+---
+
+## ✅ 검증 결과 요약
+
+### Logic Consistency Checks
+| 항목 | 상태 | 결과 |
+|---|---|---|
+| Risk Paradox | ✅ PASS | 5/5 시나리오 증명 |
+| Safety Layer | ✅ PASS | Emergency De-risking 정상 작동 |
+| Surrogate Error | ✅ PASS | 0.03% (< 5% 기준) |
+
+### Award-Winning Items
+| 항목 | 상태 |
+|---|---|
+| RCR Metric | ✅ 구현 완료 |
+| Code Philosophy | ✅ "Capital Optimization, not Prediction" 명시 |
+| Why Not Analysis (SHAP) | ✅ 시각화 완료 |
+| Efficient Frontier | ✅ 시각화 완료 |
 
 ---
 
@@ -100,8 +150,8 @@
 │                          ▼                                  │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │                    Safety Layer                         ││
-│  │  - VIX > 30: Gradual De-risking                        ││
-│  │  - K-ICS < 100%: Force 100% Hedge                      ││
+│  │  - VIX > 40: Emergency De-risking (Gradual)            ││
+│  │  - K-ICS < 100%: Force 100% Hedge (-1000 penalty)      ││
 │  │  - Max Step: ±10% per period (급발진 방지)              ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
@@ -113,34 +163,34 @@
 
 ```
 한화/
+├── DATA/
+│   └── Dynamic_Shield_Data_v4.csv    # 실제 시장 데이터 (5,292일)
+│
 ├── src/
-│   ├── core/                      # 핵심 모듈
-│   │   ├── kics_real.py           # K-ICS 엔진 (Ground Truth)
-│   │   ├── kics_surrogate.py      # AI Surrogate 모델
-│   │   ├── regime.py              # HMM 시장 국면 탐지
-│   │   ├── environment.py         # RL 환경
-│   │   ├── agent.py               # Dynamic Shield 에이전트
-│   │   ├── gym_environment.py     # Gymnasium 호환 환경
-│   │   ├── ppo_trainer.py         # PPO 훈련 (stable-baselines3)
-│   │   ├── rl_trainer.py          # Q-Learning 훈련
-│   │   ├── system.py              # 통합 시스템
-│   │   └── realistic_data.py      # 현실적 데이터 생성기
+│   ├── core/                          # 핵심 모듈
+│   │   ├── kics_real.py               # K-ICS 엔진 (Ground Truth)
+│   │   ├── kics_surrogate.py          # AI Surrogate 모델
+│   │   ├── regime.py                  # HMM 시장 국면 탐지
+│   │   ├── environment.py             # RL 환경
+│   │   ├── agent.py                   # Dynamic Shield 에이전트
+│   │   ├── gym_environment.py         # Gymnasium 호환 환경
+│   │   ├── ppo_trainer.py             # PPO 훈련 (stable-baselines3)
+│   │   ├── system.py                  # 통합 시스템
+│   │   └── realistic_data.py          # 현실적 데이터 로더
 │   │
-│   ├── validation/                # 검증 모듈
-│   │   ├── backtest.py            # 백테스팅
-│   │   ├── proof_risk_paradox.py  # Risk Paradox 증명
-│   │   ├── solvency_visualizer.py # K-ICS 방어 시각화
-│   │   ├── stress_safety.py       # Safety Layer 스트레스 테스트
-│   │   ├── advanced_viz.py        # Efficient Frontier 시각화
-│   │   └── shap_analysis.py       # Why Not 100% Hedge 분석
+│   ├── validation/                    # 검증 모듈
+│   │   ├── backtest.py                # 백테스팅 (Train/Test 분리)
+│   │   ├── proof_risk_paradox.py      # Risk Paradox 증명
+│   │   ├── solvency_visualizer.py     # COVID-19 K-ICS 방어 시각화
+│   │   ├── stress_safety.py           # Safety Layer 스트레스 테스트
+│   │   ├── advanced_viz.py            # Efficient Frontier 시각화
+│   │   ├── shap_analysis.py           # Why Not 100% Hedge 분석
+│   │   └── ppo_kics.zip               # 학습된 PPO 모델
 │   │
-│   ├── phase6_final_review.py     # 최종 검토 스크립트
-│   └── requirements.txt           # 의존성
+│   └── phase6_final_review.py         # 최종 검토 스크립트
 │
-├── models/                        # 학습된 모델
-│   └── ppo_kics.zip
-│
-└── tensorboard_logs/              # 학습 로그
+├── tensorboard_logs/                  # PPO 학습 로그
+└── requirements.txt                   # 의존성
 ```
 
 ---
@@ -154,8 +204,7 @@ conda create -n quant python=3.11 pytorch cpuonly -c pytorch -y
 conda activate quant
 
 # 의존성 설치
-pip install -r src/requirements.txt
-conda install -c conda-forge hmmlearn -y
+pip install stable-baselines3 gymnasium hmmlearn scikit-learn matplotlib pandas numpy scipy
 
 # Jupyter 커널 등록 (선택)
 python -m ipykernel install --user --name quant --display-name "(Quant)"
@@ -165,26 +214,25 @@ python -m ipykernel install --user --name quant --display-name "(Quant)"
 ```bash
 cd src/core
 
-# Phase 1: K-ICS Engine
+# Phase 1-2: K-ICS Engine + AI Surrogate
 python kics_real.py
-
-# Phase 2: AI Surrogate + Regime Detection
 python kics_surrogate.py
-python regime.py
 
-# Phase 3: System Integration
+# Phase 3: Regime Detection
+python regime.py
 python system.py
 
-# Phase 4: RL Training
-python ppo_trainer.py  # PPO (권장)
-# python rl_trainer.py  # Q-Learning (대안)
+# Phase 4: RL Training (PPO)
+python ppo_trainer.py
 
 # Phase 5: Validation
 cd ../validation
-python proof_risk_paradox.py
-python solvency_visualizer.py
-python backtest.py
-python advanced_viz.py
+python proof_risk_paradox.py      # Risk Paradox 증명
+python solvency_visualizer.py     # COVID-19 방어 시각화
+python stress_safety.py           # Safety Layer 테스트
+python backtest.py                # 백테스팅
+python advanced_viz.py            # Efficient Frontier
+python shap_analysis.py           # Why Not 100% Hedge
 
 # Phase 6: Final Review
 cd ..
@@ -201,47 +249,70 @@ tensorboard --logdir=./tensorboard_logs/
 
 ## 📊 생성되는 시각화 파일
 
-| 파일명 | 설명 |
-|---|---|
-| `risk_paradox_proof.png` | Risk Paradox 증명 그래프 |
-| `kics_defense_result.png` | COVID-19 시나리오 K-ICS 방어 |
-| `ppo_training_result.png` | PPO 학습 진행 그래프 |
-| `backtest_results.png` | 백테스팅 성과 비교 |
-| `efficient_frontier.png` | 효율적 투자선 |
-| `counterfactual_dashboard.png` | 의사결정 경계 |
-| `shap_why_not_analysis.png` | Why Not 100% Hedge 분석 |
+| 파일명 | 설명 | 위치 |
+|---|---|---|
+| `ppo_training_result.png` | PPO 학습 진행 그래프 | `src/core/` |
+| `risk_paradox_proof.png` | Risk Paradox 증명 그래프 | `src/validation/` |
+| `kics_defense_result.png` | COVID-19 시나리오 K-ICS 방어 | `src/validation/` |
+| `backtest_result_ai.png` | 백테스팅 성과 비교 | `src/validation/` |
+| `efficient_frontier.png` | 효율적 투자선 (Risk vs Cost) | `src/validation/` |
+| `counterfactual_dashboard.png` | 의사결정 경계 | `src/validation/` |
+| `shap_why_not_analysis.png` | Why Not 100% Hedge 분석 | `src/validation/` |
 
 ---
 
-## 🔮 향후 계획: 실제 데이터 적용
+## 🧠 Why Not 100% Hedge?
 
-### Phase 1: 데이터 수집
+### Regime별 분석
+| Regime | Correlation 범위 | 최적 헤지 | 평균 SCR |
+|---|---|---|---|
+| Normal (Natural Hedge) | [-0.6, -0.2) | 0.7% | 0.1144 |
+| Transition | [-0.2, 0.5) | 1.0% | 0.0857 |
+| Panic | [0.5, 0.9) | 0.3% | 0.0680 |
 
-### Phase 2: 데이터 전처리
-- **일별 수익률 계산**: `log(P_t / P_{t-1})`
-- **롤링 상관관계**: 60일/120일 윈도우
-- **GARCH 변동성 추정**: 클러스터링 효과 반영
-- **레짐 라벨링**: VIX 기반 Normal/Transition/Panic 구분
+### 100% vs 80% 헤지 비교 (Normal Regime)
+| 항목 | 100% Hedge | 80% Hedge | 차이 |
+|---|---|---|---|
+| SCR | 0.1250 | 0.1202 | **80%가 0.48%p 더 낮음** |
+| Annual Cost | 50.40% | 40.32% | **10.08%p 절감** |
 
-### Phase 3: 모델 재학습
-```python
-# 실제 데이터로 HMM 재학습
-from core.regime import MarketRegimeDetector
-detector = MarketRegimeDetector(n_regimes=3)
-detector.fit(real_market_data)
+### 결론
+1. **Natural Hedge 효과**: 주식-환율 음의 상관관계로 분산 효과
+2. **헤지 비용 절감**: 불필요한 오버헤지 비용 제거
+3. **Risk Paradox**: 적정 헤지가 완전 헤지보다 위험이 낮음
 
-# PPO 에이전트 재학습
-from core.ppo_trainer import PPOTrainer
-trainer = PPOTrainer(total_timesteps=500000)  # 더 많은 학습
-trainer.train()
-```
+---
 
-### Phase 4: 백테스팅
-- **기간**: 2015-2024 (10년)
-- **시나리오**: 2015 중국발 폭락, 2018 금리인상, 2020 COVID, 2022 금리쇼크
-- **벤치마크**: 실제 보험사 헤지 전략 vs Dynamic Shield
+## 📚 기술 스택
 
-### Phase 5: 실시간 시스템 구축(제안)
+| 영역 | 기술 |
+|---|---|
+| 언어 | Python 3.11 |
+| RL Framework | stable-baselines3, Gymnasium |
+| 딥러닝 | PyTorch 2.0+ |
+| ML | scikit-learn, hmmlearn |
+| 시각화 | Matplotlib, TensorBoard |
+| 데이터 | NumPy, Pandas, SciPy |
+
+---
+
+## 📈 핵심 성과 요약
+
+| 카테고리 | 핵심 지표 | 결과 |
+|----------|----------|------|
+| **AI 모델 정확도** | Surrogate MAPE | **0.05%** |
+| **RL 훈련** | Avg Reward | **1,301.14** |
+| **K-ICS 유지** | 최저 K-ICS | **999%** (> 100% 목표) |
+| **최적 SCR** | Dynamic Shield | **0.0982** (최저) |
+| **비용 효율** | Hedge Cost | **0.21%** (vs 60% baseline) |
+| **자본 절감** | Risk Paradox | **16.67%** |
+| **위기 대응** | COVID-19 Min K-ICS | **1,248.7%** |
+
+---
+
+## 🔮 향후 계획
+
+### Phase 1: 실시간 시스템 구축 계획
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  Production System                       │
@@ -260,18 +331,6 @@ trainer.train()
 └─────────────────────────────────────────────────────────┘
 ```
 
----
-
-## 📚 기술 스택
-
-| 영역 | 기술 |
-|---|---|
-| 언어 | Python 3.11 |
-| RL Framework | stable-baselines3, Gymnasium |
-| 딥러닝 | PyTorch 2.0+ |
-| ML | scikit-learn, hmmlearn |
-| 시각화 | Matplotlib, TensorBoard |
-| 데이터 | NumPy, Pandas, SciPy |
-
-
-
+### Phase 2: 모델 개선
+- **더 긴 학습**: 500,000+ timesteps
+- **추가 시나리오**: 2015 중국발 폭락, 2018 금리인상, 2022 금리쇼크
