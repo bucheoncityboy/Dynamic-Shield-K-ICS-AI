@@ -36,28 +36,36 @@ def prove_risk_paradox():
         scr_ratios = engine.calculate_scr_ratio_batch(hedge_ratios, fixed_corr)
         
         # 최적점 찾기
-        opt_idx = np.argmin(scr_ratios)
+        # 최적점 찾기 (지급여력비율 최대화)
+        opt_idx = np.argmax(scr_ratios)
         opt_ratio = hedge_ratios[opt_idx]
-        opt_scr = scr_ratios[opt_idx]
-        scr_100 = scr_ratios[-1]  # 100% 헤지 시 SCR
+        opt_scr_ratio = scr_ratios[opt_idx]
+        ratio_100 = scr_ratios[-1]  # 100% 헤지 시 비율
         
-        # Risk Paradox 확인
-        is_paradox = opt_ratio < 1.0 and opt_scr < scr_100
+        # 자본 절감률 계산 (Risk = Capital / Ratio)
+        # Savings = (Risk_100 - Risk_opt) / Risk_100 = 1 - (Ratio_100 / Ratio_opt)
+        if opt_scr_ratio > 0:
+            savings = (1 - (ratio_100 / opt_scr_ratio)) * 100
+        else:
+            savings = 0.0
+
+        # Risk Paradox 확인 (부분 헤지가 완전 헤지보다 비율이 높으면 성공)
+        is_paradox = opt_ratio < 1.0 and opt_scr_ratio > ratio_100
         
         results.append({
             'correlation': corr,
             'optimal_hedge': opt_ratio,
-            'optimal_scr': opt_scr,
-            'scr_100_hedge': scr_100,
-            'savings': (scr_100 - opt_scr) / scr_100 * 100,
+            'optimal_scr_ratio': opt_scr_ratio,
+            'scr_ratio_100_hedge': ratio_100,
+            'savings': savings,
             'paradox_proven': is_paradox
         })
         
         print(f"\n[Correlation: {corr:.1f}]")
         print(f"  Optimal Hedge Ratio: {opt_ratio*100:.1f}%")
-        print(f"  SCR at Optimal: {opt_scr:.4f}")
-        print(f"  SCR at 100% Hedge: {scr_100:.4f}")
-        print(f"  Capital Savings: {(scr_100 - opt_scr) / scr_100 * 100:.2f}%")
+        print(f"  Solvency Ratio (Opt): {opt_scr_ratio*100:.2f}%") # 정규화 가정 무시하고 비율로 표시
+        print(f"  Solvency Ratio (100%): {ratio_100*100:.2f}%")
+        print(f"  Risk Capital Savings: {savings:.2f}%")
         print(f"  Paradox Proven: {'YES ✓' if is_paradox else 'NO'}")
     
     # 전체 결과 확인
