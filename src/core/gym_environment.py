@@ -46,20 +46,35 @@ class KICSGymEnv(gym.Env):
     metadata = {'render_modes': ['human']}
     
     def __init__(self, 
-                 lambda1=0.1,           # 거래 비용 페널티 가중치
-                 lambda2=1000,          # K-ICS 위반 페널티 (강력!)
-                 scr_target=0.35,       # 목표 SCR 비율
-                 hedge_cost_rate=0.002, # 일일 헤지 비용률
-                 max_steps=500):        # 에피소드 최대 길이
+                 lambda1=None,           # 거래 비용 페널티 가중치
+                 lambda2=None,          # K-ICS 위반 페널티 (강력!)
+                 scr_target=None,       # 목표 SCR 비율
+                 hedge_cost_rate=None, # 일일 헤지 비용률
+                 max_steps=None):        # 에피소드 최대 길이
         
         super().__init__()
         
+        # Config 로드 시도
+        try:
+            from config_loader import ConfigLoader
+            loader = ConfigLoader()
+            gym_config = loader.get_gym_env_config()
+            
+            # 설정 파일에서 기본값 로드 (인자로 전달된 값이 우선)
+            self.lambda1 = lambda1 or gym_config.get('lambda1', 0.1)
+            self.lambda2 = lambda2 or gym_config.get('lambda2', 1000)
+            self.scr_target = scr_target or gym_config.get('scr_target', 0.35)
+            self.hedge_cost_rate = hedge_cost_rate or gym_config.get('hedge_cost_rate', 0.002)
+            self.max_steps = max_steps or gym_config.get('max_steps', 500)
+        except (ImportError, FileNotFoundError, KeyError):
+            # 폴백: 기본값 사용
+            self.lambda1 = lambda1 or 0.1
+            self.lambda2 = lambda2 or 1000
+            self.scr_target = scr_target or 0.35
+            self.hedge_cost_rate = hedge_cost_rate or 0.002
+            self.max_steps = max_steps or 500
+        
         self.engine = RatioKICSEngine()
-        self.lambda1 = lambda1
-        self.lambda2 = lambda2
-        self.scr_target = scr_target
-        self.hedge_cost_rate = hedge_cost_rate
-        self.max_steps = max_steps
         
         # Observation space: [hedge_ratio, vix_norm, corr_norm, scr_ratio]
         self.observation_space = spaces.Box(

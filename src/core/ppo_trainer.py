@@ -103,19 +103,36 @@ class PPOTrainer:
     """
     
     def __init__(self, 
-                 algorithm='PPO',
-                 total_timesteps=100000,
-                 learning_rate=3e-4,
-                 n_steps=2048,
-                 batch_size=64,
-                 gamma=0.99):
+                 algorithm=None,
+                 total_timesteps=None,
+                 learning_rate=None,
+                 n_steps=None,
+                 batch_size=None,
+                 gamma=None):
         
-        self.algorithm = algorithm
-        self.total_timesteps = total_timesteps
-        self.learning_rate = learning_rate
-        self.n_steps = n_steps
-        self.batch_size = batch_size
-        self.gamma = gamma
+        # Config 로드 시도
+        try:
+            from config_loader import ConfigLoader
+            loader = ConfigLoader()
+            ppo_config = loader.get_ppo_config()
+            
+            # 설정 파일에서 기본값 로드 (인자로 전달된 값이 우선)
+            self.algorithm = algorithm or ppo_config.get('algorithm', 'PPO')
+            self.total_timesteps = total_timesteps or ppo_config.get('total_timesteps', 100000)
+            self.learning_rate = learning_rate or ppo_config.get('learning_rate', 3e-4)
+            self.n_steps = n_steps or ppo_config.get('n_steps', 2048)
+            self.batch_size = batch_size or ppo_config.get('batch_size', 64)
+            self.gamma = gamma or ppo_config.get('gamma', 0.99)
+            self.tensorboard_log = ppo_config.get('tensorboard_log', './tensorboard_logs/')
+        except (ImportError, FileNotFoundError, KeyError):
+            # 폴백: 기본값 사용
+            self.algorithm = algorithm or 'PPO'
+            self.total_timesteps = total_timesteps or 100000
+            self.learning_rate = learning_rate or 3e-4
+            self.n_steps = n_steps or 2048
+            self.batch_size = batch_size or 64
+            self.gamma = gamma or 0.99
+            self.tensorboard_log = './tensorboard_logs/'
         
         self.env = None
         self.model = None
@@ -127,8 +144,16 @@ class PPOTrainer:
         print(f"Phase 4: RL Training with {self.algorithm}")
         print("=" * 60)
         
-        # 환경 생성
-        self.env = DummyVecEnv([lambda: KICSGymEnv(lambda2=1000)])
+        # 환경 생성 (Config에서 lambda2 로드)
+        try:
+            from config_loader import ConfigLoader
+            loader = ConfigLoader()
+            gym_config = loader.get_gym_env_config()
+            lambda2 = gym_config.get('lambda2', 1000)
+        except (ImportError, FileNotFoundError, KeyError):
+            lambda2 = 1000
+        
+        self.env = DummyVecEnv([lambda: KICSGymEnv(lambda2=lambda2)])
         
         # 알고리즘 선택
         if self.algorithm == 'PPO':
@@ -140,7 +165,7 @@ class PPOTrainer:
                 batch_size=self.batch_size,
                 gamma=self.gamma,
                 verbose=1,
-                tensorboard_log="./tensorboard_logs/"
+                tensorboard_log=self.tensorboard_log
             )
         elif self.algorithm == 'A2C':
             self.model = A2C(

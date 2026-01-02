@@ -9,23 +9,49 @@ class KICSCalculator:
     2. 자산(Assets)과 부채(Liabilities)의 듀레이션 갭에 따른 자본 변동 계산
     3. 규제 충격 시나리오를 적용해 요구자본(SCR) 및 K-ICS 비율 산출
     """
-    def __init__(self, initial_assets=10000.0, initial_liabilities=9000.0):
-        self.initial_assets = initial_assets
-        self.initial_liabilities = initial_liabilities
+    def __init__(self, initial_assets=None, initial_liabilities=None):
+        # Config 로드 시도
+        try:
+            from config_loader import ConfigLoader
+            loader = ConfigLoader()
+            kics_config = loader.get_kics_config()
+            
+            # 설정 파일에서 기본값 로드
+            self.initial_assets = initial_assets or kics_config.get('initial_assets', 10000.0)
+            self.initial_liabilities = initial_liabilities or kics_config.get('initial_liabilities', 9000.0)
+            
+            # 포트폴리오 비중
+            weights = kics_config.get('portfolio_weights', {})
+            self.w_equity = weights.get('equity', 0.3)
+            self.w_bond = weights.get('bond', 0.5)
+            self.w_fx = weights.get('fx', 0.2)
+            
+            # 듀레이션
+            duration = kics_config.get('duration', {})
+            self.dur_asset = duration.get('asset', 8.0)
+            self.dur_liab = duration.get('liability', 10.0)
+            
+            # 규제 충격 시나리오
+            stress = kics_config.get('stress_scenarios', {})
+            self.equity_shock = stress.get('equity_shock', 0.30)
+            self.fx_shock = stress.get('fx_shock', 0.10)
+            self.rate_shock = stress.get('rate_shock', 0.01)
+        except (ImportError, FileNotFoundError, KeyError):
+            # 폴백: 기본값 사용
+            self.initial_assets = initial_assets or 10000.0
+            self.initial_liabilities = initial_liabilities or 9000.0
+            self.w_equity = 0.3
+            self.w_bond = 0.5
+            self.w_fx = 0.2
+            self.dur_asset = 8.0
+            self.dur_liab = 10.0
+            self.equity_shock = 0.30
+            self.fx_shock = 0.10
+            self.rate_shock = 0.01
         
         # 현재 상태 (매일 갱신됨)
-        self.assets = initial_assets
-        self.liabilities = initial_liabilities
-        
-        # 포트폴리오 비중 가정 (주식 30%, 채권 50%, 외화 20%)
-        self.w_equity = 0.3
-        self.w_bond = 0.5
-        self.w_fx = 0.2
-        
-        # 듀레이션 설정 (단위: 년)
-        # 자산 듀레이션(8년) < 부채 듀레이션(10년) -> 금리 하락 시 부채가 더 커져 불리함 (전형적인 보험사 구조)
-        self.dur_asset = 8.0   
-        self.dur_liab = 10.0   
+        self.assets = self.initial_assets
+        self.liabilities = self.initial_liabilities   
         
     def reset(self):
         """시뮬레이션 초기화 시 호출"""
@@ -96,17 +122,17 @@ class KICSCalculator:
             return 0.0 # 자본 잠식 (최악의 상황)
             
         # 요구자본(SCR) 계산 (간이 모델)
-        # K-ICS 규제 충격 가정: 주식 -30%, 환율 +/- 10%, 금리 +/- 1%
+        # K-ICS 규제 충격 시나리오 (Config에서 로드)
         
-        # (1) 주식 리스크 (충격 30%)
-        risk_equity = self.assets * self.w_equity * 0.30
+        # (1) 주식 리스크 (충격)
+        risk_equity = self.assets * self.w_equity * self.equity_shock
         
-        # (2) 외환 리스크 (충격 10%, 헤지된 부분은 리스크 0으로 간주)
-        risk_fx = self.assets * self.w_fx * (1 - hedge_ratio) * 0.10
+        # (2) 외환 리스크 (헤지된 부분은 리스크 0으로 간주)
+        risk_fx = self.assets * self.w_fx * (1 - hedge_ratio) * self.fx_shock
         
-        # (3) 금리 리스크 (충격 1%, 듀레이션 갭만큼 노출)
+        # (3) 금리 리스크 (듀레이션 갭만큼 노출)
         gap = self.dur_liab - self.dur_asset
-        risk_rate = self.assets * self.w_bond * gap * 0.01 
+        risk_rate = self.assets * self.w_bond * gap * self.rate_shock 
         
         # 통합 리스크 (단순 합산 - 보수적 관점)
         total_risk = risk_equity + risk_fx + risk_rate
@@ -124,14 +150,45 @@ class RatioKICSEngine:
     kics_surrogate.py의 AI Surrogate 학습을 위한 인터페이스.
     헤지 비율과 상관관계를 입력받아 SCR 비율을 배치로 계산.
     """
-    def __init__(self, initial_assets=10000.0, initial_liabilities=9000.0):
-        self.initial_assets = initial_assets
-        self.initial_liabilities = initial_liabilities
-        
-        # 포트폴리오 비중 (KICSCalculator와 동일)
-        self.w_equity = 0.3
-        self.w_bond = 0.5
-        self.w_fx = 0.2
+    def __init__(self, initial_assets=None, initial_liabilities=None):
+        # Config 로드 시도 (KICSCalculator와 동일한 로직)
+        try:
+            from config_loader import ConfigLoader
+            loader = ConfigLoader()
+            kics_config = loader.get_kics_config()
+            
+            # 설정 파일에서 기본값 로드
+            self.initial_assets = initial_assets or kics_config.get('initial_assets', 10000.0)
+            self.initial_liabilities = initial_liabilities or kics_config.get('initial_liabilities', 9000.0)
+            
+            # 포트폴리오 비중
+            weights = kics_config.get('portfolio_weights', {})
+            self.w_equity = weights.get('equity', 0.3)
+            self.w_bond = weights.get('bond', 0.5)
+            self.w_fx = weights.get('fx', 0.2)
+            
+            # 듀레이션
+            duration = kics_config.get('duration', {})
+            self.dur_asset = duration.get('asset', 8.0)
+            self.dur_liab = duration.get('liability', 10.0)
+            
+            # 규제 충격 시나리오
+            stress = kics_config.get('stress_scenarios', {})
+            self.equity_shock = stress.get('equity_shock', 0.30)
+            self.fx_shock = stress.get('fx_shock', 0.10)
+            self.rate_shock = stress.get('rate_shock', 0.01)
+        except (ImportError, FileNotFoundError, KeyError):
+            # 폴백: 기본값 사용
+            self.initial_assets = initial_assets or 10000.0
+            self.initial_liabilities = initial_liabilities or 9000.0
+            self.w_equity = 0.3
+            self.w_bond = 0.5
+            self.w_fx = 0.2
+            self.dur_asset = 8.0
+            self.dur_liab = 10.0
+            self.equity_shock = 0.30
+            self.fx_shock = 0.10
+            self.rate_shock = 0.01
         
     def calculate_scr_ratio_batch(self, hedge_ratios, correlations):
         """
@@ -149,15 +206,15 @@ class RatioKICSEngine:
         
         available_capital = self.initial_assets - self.initial_liabilities
         
-        # 주식 리스크 (충격 30%)
-        risk_equity = self.initial_assets * self.w_equity * 0.30
+        # 주식 리스크 (충격)
+        risk_equity = self.initial_assets * self.w_equity * self.equity_shock
         
-        # 외환 리스크 (충격 10%, 헤지된 부분은 리스크 감소)
-        risk_fx = self.initial_assets * self.w_fx * (1 - hedge_ratios) * 0.10
+        # 외환 리스크 (헤지된 부분은 리스크 감소)
+        risk_fx = self.initial_assets * self.w_fx * (1 - hedge_ratios) * self.fx_shock
         
         # 금리 리스크 (듀레이션 갭 기반) - 독립적으로 합산
-        dur_gap = 2.0  # 10년(부채) - 8년(자산)
-        risk_rate = self.initial_assets * self.w_bond * dur_gap * 0.01
+        dur_gap = self.dur_liab - self.dur_asset
+        risk_rate = self.initial_assets * self.w_bond * dur_gap * self.rate_shock
         
         # ========================================
         # K-ICS 표준모형: 제곱근 합산 (Diversification Effect)

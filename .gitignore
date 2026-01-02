@@ -1,0 +1,180 @@
+# Dynamic Shield v3.0 - Git Ignore 파일
+# GitHub에 올리면 안 되는 파일들을 제외
+
+# ==========================================
+# Python 관련
+# ==========================================
+# Python 캐시 파일
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python 가상환경
+venv/
+env/
+ENV/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# ==========================================
+# 모델 파일 (크기가 크고 개인적)
+# ==========================================
+# 학습된 모델 파일
+models/timegan/*.pkl
+models/timegan/*.zip
+models/timegan/timegan_model.pkl
+models/timegan/scaler.pkl
+models/timegan/params.pkl
+
+# PPO 학습 모델
+src/validation/ppo_kics.zip
+*.zip
+
+# ==========================================
+# 로그 및 임시 파일
+# ==========================================
+# TensorBoard 로그
+tensorboard_logs/
+src/core/tensorboard_logs/
+*.tfevents.*
+
+# 로그 파일
+*.log
+*.out
+
+# 임시 파일
+*.tmp
+*.bak
+*.swp
+*~
+
+# ==========================================
+# OS 관련 파일
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ==========================================
+# IDE 및 에디터 설정
+# ==========================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+
+# ==========================================
+# 데이터 파일 (크기가 클 수 있음)
+# ==========================================
+# 실제 데이터 파일 (선택적 - 공유해야 하면 주석 해제)
+# DATA/data/*.csv
+# DATA/synthetic_stress/*.csv
+
+# 큰 데이터 파일
+*.csv
+*.h5
+*.hdf5
+*.parquet
+
+# ==========================================
+# 결과 및 시각화 파일 (선택적)
+# ==========================================
+# 생성된 이미지 파일 (결과물)
+# *.png
+# *.jpg
+# *.jpeg
+# *.pdf
+
+# 특정 결과 파일만 제외하려면:
+src/core/ppo_training_result.png
+src/core/test_hybrid_tsne.png
+src/validation/*.png
+src/validation/*.jpg
+
+# PDF 문서 (제안서, 결과 등 - 선택적)
+# *.pdf
+# 결과.pdf
+# 구현 워크플로우.pdf
+# 한화 제안서 형태(제출 초안).pdf
+# Dynamic Shield v3.0 데이터 명세서 (FnGuide).pdf
+
+# ==========================================
+# 환경 변수 및 설정
+# ==========================================
+# 환경 변수 파일
+.env
+.env.local
+.env.*.local
+
+# 설정 파일 (민감 정보 포함 시)
+# config/*.yaml  # 주의: config 파일은 공유해야 할 수도 있음
+
+# ==========================================
+# 테스트 및 임시 파일
+# ==========================================
+# 테스트 결과
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# 임시 스크립트
+test_*.py
+*_test.py
+# test_config.py  # 주의: 이 파일은 유지해야 할 수도 있음
+
+# ==========================================
+# 문서 파일 (선택적)
+# ==========================================
+# 분석 문서 (개인 작업물)
+# 누락_항목_검증_보고서.md
+# 미구현_항목_우선순위_분석.md
+# 리팩토링_완료_요약.md
+# config_구축_가이드.md
+# 설명.md
+
+# ==========================================
+# 기타
+# ==========================================
+# 압축 파일
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# 백업 파일
+*.backup
+*.old
+
+# 시스템 파일
+.Spotlight-V100
+.Trashes
+

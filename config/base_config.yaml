@@ -1,0 +1,101 @@
+# Dynamic Shield v3.0 - 기본 설정 파일
+# 모든 하이퍼파라미터를 중앙에서 관리
+
+# ==========================================
+# TimeGAN 설정
+# ==========================================
+timegan:
+  training:
+    epochs: 300
+    batch_size: 128
+    sequence_length: 24
+    learning_rate: 0.001
+    noise_dim: 32
+    layers_dim: 128
+    latent_dim: 24
+    gamma: 1
+  
+  data:
+    feature_cols:
+      - VIX
+      - FX
+      - Correlation
+    n_samples_default: 1000
+  
+  model:
+    save_path: "models/timegan"
+    files:
+      - timegan_model.pkl
+      - scaler.pkl
+      - params.pkl
+
+# ==========================================
+# PPO (강화학습) 설정
+# ==========================================
+ppo:
+  algorithm: "PPO"  # 또는 "A2C"
+  total_timesteps: 100000
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  gamma: 0.99
+  tensorboard_log: "./tensorboard_logs/"
+
+# ==========================================
+# Gym Environment 설정
+# ==========================================
+gym_env:
+  lambda1: 0.1           # 거래 비용 페널티 가중치
+  lambda2: 1000          # K-ICS 위반 페널티 (강력!)
+  scr_target: 0.35       # 목표 SCR 비율
+  hedge_cost_rate: 0.002 # 일일 헤지 비용률
+  max_steps: 500         # 에피소드 최대 길이
+
+# ==========================================
+# K-ICS 엔진 설정
+# ==========================================
+kics:
+  initial_assets: 10000.0
+  initial_liabilities: 9000.0
+  
+  # 포트폴리오 비중
+  portfolio_weights:
+    equity: 0.3   # 주식 30%
+    bond: 0.5     # 채권 50%
+    fx: 0.2       # 외화 20%
+  
+  # 듀레이션 설정 (년)
+  duration:
+    asset: 8.0    # 자산 듀레이션
+    liability: 10.0  # 부채 듀레이션
+  
+  # 규제 충격 시나리오
+  stress_scenarios:
+    equity_shock: 0.30    # 주식 충격 30%
+    fx_shock: 0.10       # 환율 충격 10%
+    rate_shock: 0.01     # 금리 충격 1%
+
+# ==========================================
+# Agent (Safety Layer) 설정
+# ==========================================
+agent:
+  vix_panic_threshold: 30        # 패닉 VIX 임계값
+  vix_transition_threshold: 20   # 전환 VIX 임계값
+  kics_danger_threshold: 120     # K-ICS 위험 임계값 (%)
+  kics_critical_threshold: 100   # K-ICS 치명적 임계값 (%)
+  max_hedge_change: 0.15         # 최대 1회 헤지 변동 (Gradual)
+  min_hedge: 0.3                 # 최소 헤지 비율 (30%)
+  max_hedge: 1.0                 # 최대 헤지 비율 (100%)
+
+# ==========================================
+# 데이터 경로 설정
+# ==========================================
+paths:
+  data_root: "DATA"
+  real_data: "DATA/data/Dynamic_Shield_Data_v4.csv"
+  synthetic_stress_dir: "DATA/synthetic_stress"
+  models_dir: "models"
+  timegan_model_dir: "models/timegan"
+  tensorboard_logs: "tensorboard_logs"
+  validation_output: "src/validation"
+

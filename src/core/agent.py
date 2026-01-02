@@ -26,21 +26,35 @@ class DynamicShieldAgent:
     """
     
     def __init__(self, 
-                 vix_panic_threshold=30,      # 패닉 VIX 임계값
-                 vix_transition_threshold=20, # 전환 VIX 임계값
-                 kics_danger_threshold=120,   # K-ICS 위험 임계값 (%)
-                 kics_critical_threshold=100, # K-ICS 치명적 임계값 (%)
-                 max_hedge_change=0.15):      # 최대 1회 헤지 변동 (Gradual)
+                 vix_panic_threshold=None,      # 패닉 VIX 임계값
+                 vix_transition_threshold=None, # 전환 VIX 임계값
+                 kics_danger_threshold=None,   # K-ICS 위험 임계값 (%)
+                 kics_critical_threshold=None, # K-ICS 치명적 임계값 (%)
+                 max_hedge_change=None):      # 최대 1회 헤지 변동 (Gradual)
         
-        self.vix_panic = vix_panic_threshold
-        self.vix_transition = vix_transition_threshold
-        self.kics_danger = kics_danger_threshold
-        self.kics_critical = kics_critical_threshold
-        self.max_change = max_hedge_change
-        
-        # Hard constraints
-        self.min_hedge = 0.3   # 최소 헤지 비율 (30%)
-        self.max_hedge = 1.0   # 최대 헤지 비율 (100%)
+        # Config 로드 시도
+        try:
+            from config_loader import ConfigLoader
+            loader = ConfigLoader()
+            agent_config = loader.get_agent_config()
+            
+            # 설정 파일에서 기본값 로드 (인자로 전달된 값이 우선)
+            self.vix_panic = vix_panic_threshold or agent_config.get('vix_panic_threshold', 30)
+            self.vix_transition = vix_transition_threshold or agent_config.get('vix_transition_threshold', 20)
+            self.kics_danger = kics_danger_threshold or agent_config.get('kics_danger_threshold', 120)
+            self.kics_critical = kics_critical_threshold or agent_config.get('kics_critical_threshold', 100)
+            self.max_change = max_hedge_change or agent_config.get('max_hedge_change', 0.15)
+            self.min_hedge = agent_config.get('min_hedge', 0.3)
+            self.max_hedge = agent_config.get('max_hedge', 1.0)
+        except (ImportError, FileNotFoundError, KeyError):
+            # 폴백: 기본값 사용
+            self.vix_panic = vix_panic_threshold or 30
+            self.vix_transition = vix_transition_threshold or 20
+            self.kics_danger = kics_danger_threshold or 120
+            self.kics_critical = kics_critical_threshold or 100
+            self.max_change = max_hedge_change or 0.15
+            self.min_hedge = 0.3
+            self.max_hedge = 1.0
         
         # Gradual De-risking state
         self.is_derisking = False

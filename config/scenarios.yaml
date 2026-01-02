@@ -1,0 +1,72 @@
+# Dynamic Shield v3.0 - 스트레스 테스트 시나리오 설정
+
+# ==========================================
+# Historical Stress 시나리오 (30%)
+# ==========================================
+historical_stress:
+  directory: "DATA/synthetic_stress"
+  ratio: 0.3  # 하이브리드 데이터셋에서 30% 차지
+  
+  scenarios:
+    - name: "Stagflation"
+      file: "Scenario_A_Stagflation.csv"
+      description: "스태그플레이션 시나리오"
+      enabled: true
+    
+    - name: "Correlation_Breakdown"
+      file: "Scenario_B_Correlation_Breakdown.csv"
+      description: "상관관계 붕괴 시나리오"
+      enabled: true
+    
+    - name: "Interest_Rate_Shock"
+      file: "Scenario_C_Interest_Rate_Shock.csv"
+      description: "금리 충격 시나리오"
+      enabled: true
+    
+    - name: "COVID19"
+      file: "Scenario_COVID19.csv"
+      description: "COVID-19 팬데믹 시나리오"
+      enabled: true
+    
+    - name: "Swap_Point_Extreme"
+      file: "Scenario_D_Swap_Point_Extreme.csv"
+      description: "스왑 포인트 극단 시나리오"
+      enabled: true
+    
+    - name: "Regime_Transition"
+      file: "Scenario_E_Regime_Transition.csv"
+      description: "국면 전환 시나리오"
+      enabled: true
+    
+    - name: "Tail_Risk"
+      file: "Scenario_Tail_Risk.csv"
+      description: "꼬리 위험 시나리오"
+      enabled: true
+
+# ==========================================
+# TimeGAN 생성 데이터 (70%)
+# ==========================================
+timegan_generated:
+  ratio: 0.7  # 하이브리드 데이터셋에서 70% 차지
+  n_samples: 1000
+  sequence_length: 24  # base_config.yaml과 동기화
+  
+  # 생성 옵션
+  options:
+    use_historical_seed: true  # Historical 데이터를 seed로 사용
+    diversity_weight: 0.5      # 다양성 가중치
+
+# ==========================================
+# 하이브리드 데이터셋 구성
+# ==========================================
+hybrid:
+  historical_ratio: 0.3
+  generated_ratio: 0.7
+  total_days: 5000  # 목표 총 일수
+  
+  # 검증 옵션
+  validation:
+    t_sne: true
+    discriminative_score: true
+    save_visualization: true
+
