@@ -19,7 +19,26 @@ TimeGAN 모델 학습 스크립트 (Google Colab용)
 1. Colab에서 Python 버전을 3.11 (또는 3.10)로 설정
 2. 이 파일을 Google Colab에 업로드
 3. 별도 셀에서 '!pip install ydata-synthetic' 실행
-4. 데이터 파일을 Colab에 업로드 (또는 Google Drive 마운트)
+4. 데이터 파일 준비 (다음 중 하나 선택):
+   
+   [방법 A] 직접 업로드:
+   - Colab에서 파일 아이콘 클릭 > 파일 업로드
+   - 'Dynamic_Shield_Data_v4.csv' 파일 업로드
+   
+   [방법 B] Google Drive 마운트:
+   - 별도 셀에서 실행:
+     from google.colab import drive
+     drive.mount('/content/drive')
+   - CSV 파일을 Google Drive에 업로드
+   - 스크립트가 자동으로 '/content/drive/MyDrive/' 경로에서 찾음
+   
+   [방법 C] GitHub에서 다운로드:
+   - 별도 셀에서 실행:
+     !wget https://your-repo-url/Dynamic_Shield_Data_v4.csv
+   
+   [방법 D] 샘플 데이터 사용:
+   - CSV 파일이 없으면 자동으로 샘플 데이터 생성
+   
 5. 스크립트 실행
 6. 생성된 timegan_model.zip 파일을 다운로드
 7. 로컬 프로젝트의 models/timegan/ 폴더에 압축 해제
@@ -67,7 +86,7 @@ def check_package_installed(package_name):
     except:
         return False
 
-def install_package(package_name, version=None):
+def install_package(package_name, version=None, force_reinstall=False):
     """패키지 설치 시도"""
     try:
         if version:
@@ -75,8 +94,14 @@ def install_package(package_name, version=None):
         else:
             package_spec = package_name
         
+        cmd = [sys.executable, '-m', 'pip', 'install', package_spec]
+        if force_reinstall:
+            cmd.append('--force-reinstall')
+        else:
+            cmd.append('--upgrade')
+        
         result = subprocess.run(
-            [sys.executable, '-m', 'pip', 'install', package_spec, '--upgrade'],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -85,6 +110,30 @@ def install_package(package_name, version=None):
     except Exception as e:
         print(f"설치 오류: {e}")
         return False
+
+def fix_numpy_compatibility():
+    """numpy 버전 호환성 문제 해결"""
+    print("🔧 numpy 버전 호환성 확인 중...")
+    try:
+        import numpy as np
+        numpy_version = np.__version__
+        print(f"  현재 numpy 버전: {numpy_version}")
+        
+        # numpy 재설치로 호환성 문제 해결
+        print("  numpy 재설치 중 (호환성 문제 해결)...")
+        if install_package('numpy', force_reinstall=True):
+            # 모듈 리로드
+            importlib.reload(np)
+            print("  ✓ numpy 재설치 완료")
+            return True
+        else:
+            print("  ⚠️  numpy 재설치 실패")
+            return False
+    except Exception as e:
+        print(f"  ⚠️  numpy 호환성 확인 실패: {e}")
+        # numpy가 없으면 설치
+        print("  numpy 설치 중...")
+        return install_package('numpy')
 
 # 먼저 패키지 설치 여부 확인
 package_installed = check_package_installed('ydata-synthetic')
@@ -162,6 +211,8 @@ def try_import_timegan():
     
     return None, None
 
+# numpy 호환성 문제 해결 시도
+numpy_fixed = False
 try:
     TimeGAN, method = try_import_timegan()
     if TimeGAN:
@@ -169,38 +220,60 @@ try:
         print(f"✓ ydata_synthetic import 성공 ({method})")
     else:
         raise ImportError("TimeGAN을 찾을 수 없습니다")
-except ImportError as e:
-    print(f"⚠️  import 실패: {e}")
+except (ImportError, ValueError) as e:
+    # ValueError는 numpy 호환성 문제일 수 있음
+    if isinstance(e, ValueError) and ('numpy' in str(e).lower() or 'dtype' in str(e).lower()):
+        print(f"⚠️  numpy 버전 호환성 문제 감지: {e}")
+        print("   numpy 재설치를 시도합니다...")
+        if fix_numpy_compatibility():
+            numpy_fixed = True
+            # 재시도
+            importlib.invalidate_caches()
+            try:
+                TimeGAN, method = try_import_timegan()
+                if TimeGAN:
+                    TIMEGAN_IMPORT_METHOD = method
+                    print(f"✓ ydata_synthetic import 성공 ({method}) - numpy 재설치 후")
+                else:
+                    raise ImportError("TimeGAN을 찾을 수 없습니다")
+            except Exception as e2:
+                print(f"⚠️  재시도 실패: {e2}")
+                # ImportError로 처리 계속
+                e = ImportError(f"numpy 재설치 후에도 실패: {e2}")
     
-    # 패키지가 설치되어 있다고 나오지만 import가 안 되는 경우
-    if package_installed:
-        print("📦 패키지는 설치되어 있지만 import가 실패했습니다.")
-        print("   패키지 구조를 확인하고 다른 방법을 시도합니다...")
+    # ImportError 처리
+    if isinstance(e, ImportError):
+        print(f"⚠️  import 실패: {e}")
         
-        # 모듈 캐시 무효화
-        importlib.invalidate_caches()
-        
-        # 패키지 구조 확인
-        try:
-            import ydata_synthetic.synthesizers.timeseries as ts
-            print(f"  모듈 위치: {ts.__file__}")
-            print(f"  사용 가능한 속성: {[x for x in dir(ts) if not x.startswith('_')]}")
-        except Exception as e2:
-            print(f"  구조 확인 실패: {e2}")
-        
-        # 다시 import 시도
-        TimeGAN, method = try_import_timegan()
-        if TimeGAN:
-            TIMEGAN_IMPORT_METHOD = method
-            print(f"✓ 재시도 후 import 성공 ({method})")
+        # 패키지가 설치되어 있다고 나오지만 import가 안 되는 경우
+        if package_installed:
+            print("📦 패키지는 설치되어 있지만 import가 실패했습니다.")
+            print("   패키지 구조를 확인하고 다른 방법을 시도합니다...")
+            
+            # 모듈 캐시 무효화
+            importlib.invalidate_caches()
+            
+            # 패키지 구조 확인
+            try:
+                import ydata_synthetic.synthesizers.timeseries as ts
+                print(f"  모듈 위치: {ts.__file__}")
+                print(f"  사용 가능한 속성: {[x for x in dir(ts) if not x.startswith('_')]}")
+            except Exception as e2:
+                print(f"  구조 확인 실패: {e2}")
+            
+            # 다시 import 시도
+            TimeGAN, method = try_import_timegan()
+            if TimeGAN:
+                TIMEGAN_IMPORT_METHOD = method
+                print(f"✓ 재시도 후 import 성공 ({method})")
+            else:
+                print("❌ 재시도 실패. 패키지를 재설치합니다...")
+                package_installed = False
         else:
-            print("❌ 재시도 실패. 패키지를 재설치합니다...")
             package_installed = False
-    else:
-        package_installed = False
-    
-    # 패키지가 설치되지 않은 경우 설치 시도
-    if not package_installed:
+        
+        # 패키지가 설치되지 않은 경우 설치 시도
+        if not package_installed:
         print("📦 ydata-synthetic 패키지 설치 중...")
         
         # Python 버전에 맞는 패키지 버전 선택
@@ -262,6 +335,9 @@ except ImportError as e:
                 "Python 버전이 3.9-3.11인지 확인하고, "
                 "Colab에서 별도 셀을 만들어 '!pip install ydata-synthetic'를 실행하세요."
             )
+    else:
+        # ValueError인데 numpy 문제가 아니면 다시 raise
+        raise
 
 # 최종 확인
 if TimeGAN is None:
@@ -283,20 +359,35 @@ warnings.filterwarnings('ignore')
 try:
     # 프로젝트 구조에서 config 로더 찾기 시도
     import sys
+    
+    # Colab 환경에서 __file__이 없을 수 있으므로 현재 작업 디렉토리 사용
+    try:
+        current_file = __file__
+    except NameError:
+        # Colab 환경: 현재 작업 디렉토리 사용
+        current_file = os.getcwd()
+    
     # 여러 경로 시도
     possible_paths = [
-        os.path.join(os.path.dirname(__file__), 'src', 'core'),
-        os.path.join(os.path.dirname(__file__), '..', 'src', 'core'),
+        os.path.join(os.path.dirname(current_file), 'src', 'core'),
+        os.path.join(os.path.dirname(current_file), '..', 'src', 'core'),
         'src/core',
+        '/content/src/core',  # Colab 기본 경로
+        os.path.join(os.getcwd(), 'src', 'core'),  # 현재 작업 디렉토리 기준
     ]
     
     config_loader = None
     for path in possible_paths:
-        if os.path.exists(os.path.join(path, 'config_loader.py')):
+        config_loader_path = os.path.join(path, 'config_loader.py')
+        if os.path.exists(config_loader_path):
             sys.path.insert(0, path)
-            from config_loader import ConfigLoader
-            config_loader = ConfigLoader()
-            break
+            try:
+                from config_loader import ConfigLoader
+                config_loader = ConfigLoader()
+                print(f"[Config 로드] 경로에서 발견: {path}")
+                break
+            except ImportError as e:
+                continue
     
     if config_loader:
         config = config_loader.load_base_config()
@@ -312,7 +403,7 @@ try:
     else:
         raise ImportError("Config 로더를 찾을 수 없음")
         
-except (ImportError, FileNotFoundError, KeyError) as e:
+except (ImportError, FileNotFoundError, KeyError, NameError) as e:
     # 폴백: 기본값 사용 (Colab 환경 등)
     print(f"[경고] Config 파일을 찾을 수 없어 기본값 사용: {e}")
     SEQUENCE_LENGTH = 24  # 시퀀스 길이 (일 단위)
@@ -328,24 +419,152 @@ print("=" * 60)
 print("1. 데이터 준비")
 print("=" * 60)
 
-# 옵션 A: CSV 파일에서 로드 (실제 사용 시)
-# training_data = pd.read_csv('your_data.csv')
+# Google Drive 마운트 시도 (Colab 환경에서만)
+try:
+    from google.colab import drive
+    if not os.path.exists('/content/drive/MyDrive'):
+        print("📁 Google Drive 마운트 시도 중...")
+        print("   (인증이 필요할 수 있습니다)")
+        drive.mount('/content/drive', force_remount=False)
+        print("✓ Google Drive 마운트 완료")
+    else:
+        print("✓ Google Drive 이미 마운트됨")
+except ImportError:
+    # Colab이 아닌 환경
+    pass
+except Exception as e:
+    print(f"⚠️  Google Drive 마운트 실패 (무시하고 계속): {e}")
 
-# 옵션 B: 샘플 데이터 생성 (테스트용)
-np.random.seed(42)
-n_days = 2000
+# 데이터 파일 경로 설정 (여러 위치 시도)
+possible_data_paths = [
+    # 직접 업로드된 파일 (Colab)
+    'Dynamic_Shield_Data_v4.csv',
+    'data.csv',
+    'training_data.csv',
+    # Google Drive 마운트 경로
+    '/content/drive/MyDrive/Dynamic_Shield_Data_v4.csv',
+    '/content/drive/MyDrive/data/Dynamic_Shield_Data_v4.csv',
+    '/content/drive/MyDrive/DATA/data/Dynamic_Shield_Data_v4.csv',
+    # 로컬 프로젝트 경로 (Colab에 업로드한 경우)
+    'DATA/data/Dynamic_Shield_Data_v4.csv',
+    '../DATA/data/Dynamic_Shield_Data_v4.csv',
+    # Config에서 경로 가져오기 (있는 경우)
+]
 
-vix = np.random.uniform(10, 60, n_days)
-fx = 1200 + np.cumsum(np.random.normal(0, 5, n_days))
-correlation = np.random.uniform(-0.6, 0.8, n_days)
+training_data = None
+data_source = None
 
-training_data = pd.DataFrame({
-    'VIX': vix,
-    'FX': fx,
-    'Correlation': correlation
-})
+# 옵션 A: CSV 파일에서 로드 시도
+for data_path in possible_data_paths:
+    if os.path.exists(data_path):
+        try:
+            print(f"📂 CSV 파일 발견: {data_path}")
+            loaded_data = pd.read_csv(data_path)
+            
+            # 필수 컬럼 확인
+            required_cols = set(FEATURE_COLS)
+            available_cols = set(loaded_data.columns)
+            
+            if required_cols.issubset(available_cols):
+                # 필요한 컬럼만 선택
+                training_data = loaded_data[FEATURE_COLS].copy()
+                data_source = data_path
+                print(f"✓ CSV 파일 로드 성공: {len(training_data)}행")
+                break
+            else:
+                missing_cols = required_cols - available_cols
+                print(f"⚠️  필수 컬럼 누락: {missing_cols}")
+                print(f"   사용 가능한 컬럼: {list(available_cols)}")
+                
+                # 누락된 컬럼을 생성하거나 대체 시도
+                training_data = loaded_data.copy()
+                data_fixed = False
+                
+                # Correlation 컬럼이 없으면 계산하거나 대체
+                if 'Correlation' in missing_cols:
+                    if 'VIX' in available_cols and 'FX' in available_cols:
+                        # VIX와 FX의 정규화된 차이로 Correlation 근사
+                        print("   → Correlation 컬럼을 VIX와 FX의 정규화된 관계로 계산합니다...")
+                        vix_norm = (training_data['VIX'] - training_data['VIX'].mean()) / training_data['VIX'].std()
+                        fx_norm = (training_data['FX'] - training_data['FX'].mean()) / training_data['FX'].std()
+                        # 정규화된 값의 곱을 상관관계 근사로 사용
+                        training_data['Correlation'] = (vix_norm * fx_norm).clip(-1, 1)
+                        data_fixed = True
+                    elif 'SPX' in available_cols and 'KOSPI' in available_cols:
+                        # SPX와 KOSPI의 정규화된 관계 사용
+                        print("   → Correlation 컬럼을 SPX와 KOSPI의 정규화된 관계로 계산합니다...")
+                        spx_norm = (training_data['SPX'] - training_data['SPX'].mean()) / training_data['SPX'].std()
+                        kospi_norm = (training_data['KOSPI'] - training_data['KOSPI'].mean()) / training_data['KOSPI'].std()
+                        training_data['Correlation'] = (spx_norm * kospi_norm).clip(-1, 1)
+                        data_fixed = True
+                    else:
+                        # 랜덤 값으로 생성
+                        print("   → Correlation 컬럼을 랜덤 값으로 생성합니다...")
+                        training_data['Correlation'] = np.random.uniform(-0.6, 0.8, len(training_data))
+                        data_fixed = True
+                
+                # VIX나 FX가 없으면 대체 컬럼 찾기
+                if 'VIX' in missing_cols:
+                    if 'VIX_Change' in available_cols:
+                        print("   → VIX 컬럼을 VIX_Change로 대체합니다...")
+                        training_data['VIX'] = training_data['VIX_Change'].abs() * 20 + 20  # 스케일 조정
+                        data_fixed = True
+                
+                if 'FX' in missing_cols:
+                    if 'Swap_Point_Proxy' in available_cols:
+                        print("   → FX 컬럼을 Swap_Point_Proxy로 대체합니다...")
+                        training_data['FX'] = training_data['Swap_Point_Proxy'] * 10 + 1200  # 스케일 조정
+                        data_fixed = True
+                
+                # 필요한 컬럼이 모두 있으면 사용
+                if set(FEATURE_COLS).issubset(set(training_data.columns)):
+                    training_data = training_data[FEATURE_COLS].copy()
+                    data_source = f"{data_path} (컬럼 보정됨)"
+                    print(f"✓ CSV 파일 로드 성공 (컬럼 보정): {len(training_data)}행")
+                    break
+                else:
+                    print("   ⚠️  필수 컬럼을 생성/대체할 수 없어 다음 파일을 시도합니다...")
+                    training_data = None
+                    
+        except Exception as e:
+            print(f"⚠️  파일 로드 실패 ({data_path}): {e}")
+            training_data = None
+            continue
 
-print(f"학습 데이터: {len(training_data)}일")
+# 옵션 B: 샘플 데이터 생성 (CSV 파일이 없는 경우 또는 로드 실패)
+if training_data is None:
+    print("📊 CSV 파일을 찾을 수 없어 샘플 데이터를 생성합니다.")
+    print("   (실제 데이터를 사용하려면 다음 중 하나를 수행하세요:)")
+    print("   1. Colab에 CSV 파일 업로드")
+    print("   2. Google Drive 마운트 후 파일 경로 설정")
+    print("   3. GitHub에서 파일 다운로드")
+    print()
+    
+    np.random.seed(42)
+    n_days = 2000
+
+    vix = np.random.uniform(10, 60, n_days)
+    fx = 1200 + np.cumsum(np.random.normal(0, 5, n_days))
+    correlation = np.random.uniform(-0.6, 0.8, n_days)
+
+    training_data = pd.DataFrame({
+        'VIX': vix,
+        'FX': fx,
+        'Correlation': correlation
+    })
+    data_source = "샘플 데이터 (생성)"
+
+# 최종 확인: training_data가 None이면 오류
+if training_data is None:
+    raise ValueError("데이터를 로드할 수 없습니다. CSV 파일을 확인하거나 샘플 데이터 생성에 실패했습니다.")
+
+# data_source가 정의되지 않았을 경우
+if 'data_source' not in locals():
+    data_source = "알 수 없음"
+
+print(f"\n학습 데이터: {len(training_data)}일")
+print(f"데이터 소스: {data_source}")
+print(f"컬럼: {list(training_data.columns)}")
 print(training_data.head())
 
 # ==========================================

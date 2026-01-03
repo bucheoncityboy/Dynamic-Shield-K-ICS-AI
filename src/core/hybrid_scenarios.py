@@ -72,14 +72,18 @@ class HybridScenarioBuilder:
             
             # 경로 설정 (Config에서 로드)
             if historical_stress_dir is None:
-                historical_stress_dir = paths.get('synthetic_stress_dir', 
-                    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'DATA', 'synthetic_stress'))
+                default_stress_dir = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                    'DATA', 'synthetic_stress'
                 )
+                historical_stress_dir = paths.get('synthetic_stress_dir', default_stress_dir)
             
             if timegan_model_path is None:
-                timegan_model_path = paths.get('timegan_model_dir', 
-                    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'models', 'timegan')
+                default_model_dir = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                    'models', 'timegan'
                 )
+                timegan_model_path = paths.get('timegan_model_dir', default_model_dir)
             
             print(f"[Config 로드] 설정 파일에서 경로 로드 완료")
         except (ImportError, FileNotFoundError) as e:
