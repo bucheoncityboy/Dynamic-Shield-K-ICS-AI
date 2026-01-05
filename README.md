@@ -190,24 +190,80 @@
 │   └── phase6_final_review.py         # 최종 검토 스크립트
 │
 ├── tensorboard_logs/                  # PPO 학습 로그
-└── requirements.txt                   # 의존성
+├── requirements.txt                   # 의존성
+├── SETUP.md                           # 상세 설치 가이드
+├── QUICK_START.md                     # 빠른 시작 가이드
+├── install.sh                         # 자동 설치 스크립트 (macOS/Linux)
+└── install.bat                         # 자동 설치 스크립트 (Windows)
 ```
 
 ---
 
 ## 🚀 설치 및 실행
 
+> **💡 처음 실행하시나요?**  
+> - 🚀 **빠른 시작**: [QUICK_START.md](QUICK_START.md) - 가장 빠른 실행 방법
+> - 📦 **상세 설치 가이드**: [SETUP.md](SETUP.md) - 단계별 설치 방법
+> - 📖 **전체 실행 가이드**: `src/실행_가이드.md` - 모든 기능 상세 설명
+
 ### 1. 환경 설정
+
+#### 필수 요구사항
+- Python 3.9 이상 (3.11 권장)
+- pip 또는 conda
+
+#### 설치 방법
+
+**🚀 빠른 설치 (자동 스크립트)**
 ```bash
-# Conda 환경 생성 (Python 3.11 권장)
-conda create -n quant python=3.11 pytorch cpuonly -c pytorch -y
-conda activate quant
+# macOS/Linux
+./install.sh
 
-# 의존성 설치
-pip install stable-baselines3 gymnasium hmmlearn scikit-learn matplotlib pandas numpy scipy
+# Windows
+install.bat
+```
 
-# Jupyter 커널 등록 (선택)
-python -m ipykernel install --user --name quant --display-name "(Quant)"
+**옵션 A: Conda 사용 (권장)**
+```bash
+# 프로젝트 디렉토리로 이동
+cd Dynamic-Shield-K-ICS-AI
+
+# Conda 환경 생성
+conda create -n dynamic_shield python=3.11 -y
+conda activate dynamic_shield
+
+# PyTorch 설치 (CPU 버전)
+conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
+
+# 나머지 의존성 설치
+pip install -r requirements.txt
+```
+
+**옵션 B: venv 사용**
+```bash
+# 프로젝트 디렉토리로 이동
+cd Dynamic-Shield-K-ICS-AI
+
+# 가상환경 생성 및 활성화
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# PyTorch 설치 (CPU 버전)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# 나머지 의존성 설치
+pip install -r requirements.txt
+```
+
+#### 설치 확인
+```bash
+cd src
+python -c "import torch; import stable_baselines3; print('✓ 설치 완료')"
+```
+
+#### Jupyter 커널 등록 (선택사항)
+```bash
+python -m ipykernel install --user --name dynamic_shield --display-name "Dynamic Shield"
 ```
 
 ### 2. 전체 파이프라인 실행

@@ -76,6 +76,11 @@ class KICSGymEnv(gym.Env):
         
         self.engine = RatioKICSEngine()
         
+        # [제안서 적용] DNN Surrogate 모델 로드 (폴백: 실제 엔진)
+        self.surrogate = None
+        self.use_surrogate = True  # Config에서 제어 가능
+        self._load_surrogate_model()
+        
         # Observation space: [hedge_ratio, vix_norm, corr_norm, scr_ratio]
         self.observation_space = spaces.Box(
             low=np.array([0.0, 0.0, 0.0, 0.0]),
@@ -109,14 +114,113 @@ class KICSGymEnv(gym.Env):
         # [v4.0] 실제 데이터 캐시 (Anti-Overfitting)
         self._real_data_cache = None
         
+        # [제안서 적용] Hybrid 시나리오 사용 옵션
+        self.use_hybrid_scenarios = False  # Config에서 제어 가능
+        self.hybrid_scenario_builder = None
+        
+    def _load_surrogate_model(self):
+        """DNN Surrogate 모델 로드 (제안서 적용)"""
+        try:
+            try:
+                from kics_surrogate import RobustSurrogate
+            except ImportError:
+                from .kics_surrogate import RobustSurrogate
+            import os
+            
+            # 모델 경로 탐색
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(script_dir))
+            
+            model_paths = [
+                os.path.join(project_root, 'models', 'surrogate', 'kics_surrogate.pth'),
+                os.path.join(project_root, 'models', 'kics_surrogate.pth'),
+                os.path.join(script_dir, '..', '..', 'models', 'surrogate', 'kics_surrogate.pth'),
+            ]
+            
+            for path in model_paths:
+                if os.path.exists(path):
+                    try:
+                        self.surrogate = RobustSurrogate(use_pytorch=True)
+                        self.surrogate.load(path)
+                        # 스케일러도 로드 시도 (같은 디렉토리)
+                        scaler_x_path = path.replace('.pth', '_scaler_x.pkl')
+                        scaler_y_path = path.replace('.pth', '_scaler_y.pkl')
+                        if os.path.exists(scaler_x_path) and os.path.exists(scaler_y_path):
+                            import pickle
+                            with open(scaler_x_path, 'rb') as f:
+                                self.surrogate.scaler_x = pickle.load(f)
+                            with open(scaler_y_path, 'rb') as f:
+                                self.surrogate.scaler_y = pickle.load(f)
+                        print(f"[Surrogate] 모델 로드 성공: {path}")
+                        return
+                    except Exception as e:
+                        print(f"[Surrogate] 모델 로드 실패 ({path}): {e}")
+                        continue
+            
+            print("[Surrogate] 모델 파일 없음. 실제 엔진 사용 (폴백)")
+            self.surrogate = None
+        except ImportError:
+            print("[Surrogate] kics_surrogate 모듈 없음. 실제 엔진 사용 (폴백)")
+            self.surrogate = None
+        except Exception as e:
+            print(f"[Surrogate] 로드 오류: {e}. 실제 엔진 사용 (폴백)")
+            self.surrogate = None
+        
     def _generate_market_data(self, n_steps):
         """
         [v4.0 개선] 실제 데이터 기반 시장 데이터 생성
+        
+        [제안서 적용] Hybrid 시나리오 옵션 추가:
+        - use_hybrid_scenarios=True: TimeGAN + Historical Stress (70:30)
+        - use_hybrid_scenarios=False: 실제 데이터만 사용
         
         Anti-Overfitting:
         - 학습 시에는 실제 데이터의 앞쪽 70% (Train set)만 사용
         - 합성 데이터는 폴백용으로만 사용
         """
+        # [제안서 적용] Hybrid 시나리오 사용 옵션
+        if self.use_hybrid_scenarios:
+            try:
+                try:
+                    from hybrid_scenarios import HybridScenarioBuilder
+                except ImportError:
+                    from .hybrid_scenarios import HybridScenarioBuilder
+                
+                if self.hybrid_scenario_builder is None:
+                    self.hybrid_scenario_builder = HybridScenarioBuilder()
+                    # Historical Stress 로드
+                    self.hybrid_scenario_builder.load_historical_stress()
+                    # TimeGAN 모델 로드 시도
+                    self.hybrid_scenario_builder.load_timegan_model()
+                    # 데이터 생성 및 혼합
+                    if self.hybrid_scenario_builder.timegan_trained:
+                        self.hybrid_scenario_builder.generate_timegan_data(n_samples=2000)
+                        self.hybrid_scenario_builder.build_hybrid_dataset(generated_ratio=0.7, historical_ratio=0.3)
+                    else:
+                        print("[Hybrid] TimeGAN 모델 없음. 실제 데이터 사용")
+                        self.use_hybrid_scenarios = False
+                
+                if self.hybrid_scenario_builder.hybrid_data is not None:
+                    hybrid_data = self.hybrid_scenario_builder.hybrid_data
+                    # 랜덤 샘플링
+                    if len(hybrid_data) >= n_steps:
+                        indices = np.random.choice(len(hybrid_data), n_steps, replace=False)
+                        return {
+                            'vix': hybrid_data.iloc[indices]['VIX'].values,
+                            'correlation': hybrid_data.iloc[indices]['Correlation'].values
+                        }
+                    else:
+                        # 데이터가 부족하면 반복 샘플링
+                        indices = np.random.choice(len(hybrid_data), n_steps, replace=True)
+                        return {
+                            'vix': hybrid_data.iloc[indices]['VIX'].values,
+                            'correlation': hybrid_data.iloc[indices]['Correlation'].values
+                        }
+            except Exception as e:
+                print(f"[Hybrid] Hybrid 시나리오 로드 실패: {e}. 실제 데이터 사용")
+                self.use_hybrid_scenarios = False
+        
+        # 실제 데이터 사용 (기존 로직)
         try:
             # 실제 데이터 로드 시도
             from realistic_data import load_real_data_for_training
@@ -172,11 +276,44 @@ class KICSGymEnv(gym.Env):
         return {'vix': vix, 'correlation': np.array(correlations)}
     
     def _calculate_scr(self):
-        """K-ICS SCR 비율 계산"""
-        return self.engine.calculate_scr_ratio_batch(
-            np.array([self.hedge_ratio]),
-            np.array([self.correlation])
-        )[0]
+        """
+        K-ICS SCR 비율 계산
+        
+        [제안서 적용] DNN Surrogate 모델 사용 (밀리초 단위 고속 추론)
+        - Surrogate 모델이 있으면 사용 (빠른 추론)
+        - 없으면 실제 엔진 사용 (폴백)
+        """
+        if self.use_surrogate and self.surrogate is not None:
+            try:
+                # Surrogate 모델 입력: [hedge_ratio, correlation]
+                X = np.array([[self.hedge_ratio, self.correlation]])
+                
+                # 스케일러가 있으면 사용
+                if hasattr(self.surrogate, 'scaler_x') and self.surrogate.scaler_x is not None:
+                    X_scaled = self.surrogate.scaler_x.transform(X)
+                    scr_scaled = self.surrogate.predict(X_scaled)
+                    if hasattr(self.surrogate, 'scaler_y') and self.surrogate.scaler_y is not None:
+                        scr = self.surrogate.scaler_y.inverse_transform(scr_scaled.reshape(-1, 1))[0, 0]
+                    else:
+                        scr = scr_scaled[0]
+                else:
+                    # 스케일러 없으면 직접 예측
+                    scr = self.surrogate.predict(X)[0]
+                
+                return float(scr)
+            except Exception as e:
+                # Surrogate 실패 시 실제 엔진으로 폴백
+                print(f"[Surrogate] 추론 실패, 실제 엔진 사용: {e}")
+                return self.engine.calculate_scr_ratio_batch(
+                    np.array([self.hedge_ratio]),
+                    np.array([self.correlation])
+                )[0]
+        else:
+            # 실제 엔진 사용 (폴백)
+            return self.engine.calculate_scr_ratio_batch(
+                np.array([self.hedge_ratio]),
+                np.array([self.correlation])
+            )[0]
     
     def _get_obs(self):
         """현재 상태 반환 (정규화된 형태)"""

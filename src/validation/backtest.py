@@ -84,9 +84,18 @@ def strategy_dynamic_shield_fallback(vix, current_ratio):
 # ==========================================
 
 class BacktestEngine:
-    def __init__(self, model_filename="ppo_kics"):
+    def __init__(self, model_filename="ppo_kics", use_surrogate=True, use_hybrid_scenarios=False):
         self.engine = RatioKICSEngine()
         self.model = None
+        
+        # [제안서 적용] DNN Surrogate 모델 로드
+        self.surrogate = None
+        self.use_surrogate = use_surrogate
+        self._load_surrogate_model()
+        
+        # [제안서 적용] Hybrid 시나리오 사용 옵션
+        self.use_hybrid_scenarios = use_hybrid_scenarios
+        self.hybrid_scenario_builder = None
         
         # [핵심 변경] 모델 파일 자동 탐색 (현재 폴더 -> models 폴더 순)
         if STABLE_BASELINES_AVAILABLE:
@@ -123,6 +132,88 @@ class BacktestEngine:
             'Rule-based': strategy_rule_based,
             'Dynamic Shield': self.strategy_real_ai_inference # AI 메서드 연결
         }
+    
+    def _load_surrogate_model(self):
+        """DNN Surrogate 모델 로드 (제안서 적용)"""
+        if not self.use_surrogate:
+            return
+        
+        try:
+            from core.kics_surrogate import RobustSurrogate
+            
+            # 모델 경로 탐색
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(script_dir))
+            
+            model_paths = [
+                os.path.join(project_root, 'models', 'surrogate', 'kics_surrogate.pth'),
+                os.path.join(project_root, 'models', 'kics_surrogate.pth'),
+                os.path.join(script_dir, '..', 'models', 'surrogate', 'kics_surrogate.pth'),
+            ]
+            
+            for path in model_paths:
+                if os.path.exists(path):
+                    try:
+                        self.surrogate = RobustSurrogate(use_pytorch=True)
+                        self.surrogate.load(path)
+                        # 스케일러도 로드 시도
+                        scaler_x_path = path.replace('.pth', '_scaler_x.pkl')
+                        scaler_y_path = path.replace('.pth', '_scaler_y.pkl')
+                        if os.path.exists(scaler_x_path) and os.path.exists(scaler_y_path):
+                            import pickle
+                            with open(scaler_x_path, 'rb') as f:
+                                self.surrogate.scaler_x = pickle.load(f)
+                            with open(scaler_y_path, 'rb') as f:
+                                self.surrogate.scaler_y = pickle.load(f)
+                        print(f"[Backtest] Surrogate 모델 로드 성공: {path}")
+                        return
+                    except Exception as e:
+                        print(f"[Backtest] Surrogate 모델 로드 실패 ({path}): {e}")
+                        continue
+            
+            print("[Backtest] Surrogate 모델 파일 없음. 실제 엔진 사용 (폴백)")
+            self.surrogate = None
+        except ImportError:
+            print("[Backtest] kics_surrogate 모듈 없음. 실제 엔진 사용 (폴백)")
+            self.surrogate = None
+        except Exception as e:
+            print(f"[Backtest] Surrogate 로드 오류: {e}. 실제 엔진 사용 (폴백)")
+            self.surrogate = None
+    
+    def _calculate_scr_with_surrogate(self, hedge_ratio, correlation):
+        """
+        SCR 계산 (Surrogate 우선, 폴백: 실제 엔진)
+        
+        [제안서 적용] DNN Surrogate 모델 사용 (밀리초 단위 고속 추론)
+        """
+        if self.use_surrogate and self.surrogate is not None:
+            try:
+                X = np.array([[hedge_ratio, correlation]])
+                
+                # 스케일러가 있으면 사용
+                if hasattr(self.surrogate, 'scaler_x') and self.surrogate.scaler_x is not None:
+                    X_scaled = self.surrogate.scaler_x.transform(X)
+                    scr_scaled = self.surrogate.predict(X_scaled)
+                    if hasattr(self.surrogate, 'scaler_y') and self.surrogate.scaler_y is not None:
+                        scr = self.surrogate.scaler_y.inverse_transform(scr_scaled.reshape(-1, 1))[0, 0]
+                    else:
+                        scr = scr_scaled[0]
+                else:
+                    scr = self.surrogate.predict(X)[0]
+                
+                return float(scr)
+            except Exception as e:
+                # Surrogate 실패 시 실제 엔진으로 폴백
+                return self.engine.calculate_scr_ratio_batch(
+                    np.array([hedge_ratio]),
+                    np.array([correlation])
+                )[0]
+        else:
+            # 실제 엔진 사용
+            return self.engine.calculate_scr_ratio_batch(
+                np.array([hedge_ratio]),
+                np.array([correlation])
+            )[0]
         
     def strategy_real_ai_inference(self, vix, current_ratio, correlation, scr_ratio):
         """
@@ -165,11 +256,8 @@ class BacktestEngine:
             vix = row['VIX']
             corr = row['Correlation']
             
-            # 현재 상태 SCR 계산 (AI 입력용)
-            current_scr = self.engine.calculate_scr_ratio_batch(
-                np.array([current_ratio]), 
-                np.array([corr])
-            )[0]
+            # 현재 상태 SCR 계산 (AI 입력용) - Surrogate 사용
+            current_scr = self._calculate_scr_with_surrogate(current_ratio, corr)
             
             # [전략 실행]
             if is_ai_strategy:
@@ -179,11 +267,8 @@ class BacktestEngine:
                 # 기존 단순 전략들
                 new_ratio = strategy_func(vix, current_ratio)
             
-            # 결과 기록용 SCR 재계산
-            final_scr = self.engine.calculate_scr_ratio_batch(
-                np.array([new_ratio]), 
-                np.array([corr])
-            )[0]
+            # 결과 기록용 SCR 재계산 - Surrogate 사용
+            final_scr = self._calculate_scr_with_surrogate(new_ratio, corr)
             
             # 헤지 비용 (간단화: 연 0.2% 가정)
             hedge_cost = new_ratio * 0.002 
@@ -423,15 +508,35 @@ class PerformanceAnalyzer:
 # 4. Main Execution
 # ==========================================
 
-def run_full_analysis():
+def run_full_analysis(use_hybrid_scenarios=False):
     print("=" * 60)
     print("Phase 5.4: Backtesting & Performance Analysis (With Real AI)")
     print("[v4.0] Anti-Overfitting: 실제 데이터 사용, Train/Test 분리")
+    if use_hybrid_scenarios:
+        print("[제안서 적용] Hybrid 시나리오 사용 (TimeGAN 70% + Historical 30%)")
     print("=" * 60)
     
     # 모델 파일이 같은 폴더에 있다면 "ppo_kics"만 입력하면 됨 (확장자 자동 처리)
-    engine = BacktestEngine(model_filename="ppo_kics")
+    engine = BacktestEngine(model_filename="ppo_kics", use_surrogate=True, use_hybrid_scenarios=use_hybrid_scenarios)
     analyzer = PerformanceAnalyzer()
+    
+    # [제안서 적용] Hybrid 시나리오 사용 옵션
+    if use_hybrid_scenarios:
+        try:
+            from core.hybrid_scenarios import HybridScenarioBuilder
+            engine.hybrid_scenario_builder = HybridScenarioBuilder()
+            engine.hybrid_scenario_builder.load_historical_stress()
+            engine.hybrid_scenario_builder.load_timegan_model()
+            if engine.hybrid_scenario_builder.timegan_trained:
+                engine.hybrid_scenario_builder.generate_timegan_data(n_samples=2000)
+                engine.hybrid_scenario_builder.build_hybrid_dataset(generated_ratio=0.7, historical_ratio=0.3)
+                print("[Backtest] Hybrid 시나리오 준비 완료")
+            else:
+                print("[Backtest] TimeGAN 모델 없음. 실제 데이터 사용")
+                use_hybrid_scenarios = False
+        except Exception as e:
+            print(f"[Backtest] Hybrid 시나리오 로드 실패: {e}. 실제 데이터 사용")
+            use_hybrid_scenarios = False
     
     # 테스트용 시나리오 (실제 데이터의 Test 구간 사용)
     scenarios = ['normal', '2008_crisis', '2020_pandemic']
@@ -440,8 +545,20 @@ def run_full_analysis():
     
     for scenario in scenarios:
         print(f"\n[Scenario: {scenario.upper()}]")
-        # [핵심 변경] is_training=False로 테스트 데이터만 사용
-        market_data = generate_market_scenario(500, scenario, use_real_data=True, is_training=False)
+        
+        # [제안서 적용] Hybrid 시나리오 사용
+        if use_hybrid_scenarios and engine.hybrid_scenario_builder is not None and engine.hybrid_scenario_builder.hybrid_data is not None:
+            # Hybrid 데이터에서 샘플링
+            hybrid_data = engine.hybrid_scenario_builder.hybrid_data
+            n_samples = min(500, len(hybrid_data))
+            indices = np.random.choice(len(hybrid_data), n_samples, replace=False)
+            market_data = hybrid_data.iloc[indices].copy()
+            # 필요한 컬럼만 선택
+            if 'FX' not in market_data.columns:
+                market_data['FX'] = 1300  # 기본값
+        else:
+            # [핵심 변경] is_training=False로 테스트 데이터만 사용
+            market_data = generate_market_scenario(500, scenario, use_real_data=True, is_training=False)
         
         # FX 열 필요 (성과 계산용)
         if 'FX' not in market_data.columns:

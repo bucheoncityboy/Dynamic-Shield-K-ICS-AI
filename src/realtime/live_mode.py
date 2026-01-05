@@ -49,6 +49,12 @@ class LiveTradingLoop:
         self.latency_monitor = LatencyMonitor()
         self.intraday_estimator = IntradayEstimator()
         
+        # [제안서 적용] DNN Surrogate 모델 로드
+        self.surrogate = None
+        self.use_surrogate = True
+        self.kics_engine = None  # 폴백용
+        self._load_surrogate_model()
+        
         # 상태
         self.current_hedge = 0.5
         self.is_running = False
@@ -57,6 +63,65 @@ class LiveTradingLoop:
         # 히스토리 (모니터링용)
         self.action_history = []
         self.max_history = 1000
+    
+    def _load_surrogate_model(self):
+        """DNN Surrogate 모델 로드 (제안서 적용)"""
+        if not self.use_surrogate:
+            # 폴백용 실제 엔진만 로드
+            from core.kics_real import RatioKICSEngine
+            self.kics_engine = RatioKICSEngine()
+            return
+        
+        try:
+            from core.kics_surrogate import RobustSurrogate
+            
+            # 모델 경로 탐색
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(script_dir))
+            
+            model_paths = [
+                os.path.join(project_root, 'models', 'surrogate', 'kics_surrogate.pth'),
+                os.path.join(project_root, 'models', 'kics_surrogate.pth'),
+                os.path.join(script_dir, '..', 'models', 'surrogate', 'kics_surrogate.pth'),
+            ]
+            
+            for path in model_paths:
+                if os.path.exists(path):
+                    try:
+                        self.surrogate = RobustSurrogate(use_pytorch=True)
+                        self.surrogate.load(path)
+                        # 스케일러도 로드 시도
+                        scaler_x_path = path.replace('.pth', '_scaler_x.pkl')
+                        scaler_y_path = path.replace('.pth', '_scaler_y.pkl')
+                        if os.path.exists(scaler_x_path) and os.path.exists(scaler_y_path):
+                            import pickle
+                            with open(scaler_x_path, 'rb') as f:
+                                self.surrogate.scaler_x = pickle.load(f)
+                            with open(scaler_y_path, 'rb') as f:
+                                self.surrogate.scaler_y = pickle.load(f)
+                        print(f"[Live] Surrogate 모델 로드 성공: {path}")
+                        # 폴백용 실제 엔진도 준비
+                        from core.kics_real import RatioKICSEngine
+                        self.kics_engine = RatioKICSEngine()
+                        return
+                    except Exception as e:
+                        print(f"[Live] Surrogate 모델 로드 실패 ({path}): {e}")
+                        continue
+            
+            print("[Live] Surrogate 모델 파일 없음. 실제 엔진 사용 (폴백)")
+            from core.kics_real import RatioKICSEngine
+            self.kics_engine = RatioKICSEngine()
+            self.surrogate = None
+        except ImportError:
+            print("[Live] kics_surrogate 모듈 없음. 실제 엔진 사용 (폴백)")
+            from core.kics_real import RatioKICSEngine
+            self.kics_engine = RatioKICSEngine()
+            self.surrogate = None
+        except Exception as e:
+            print(f"[Live] Surrogate 로드 오류: {e}. 실제 엔진 사용 (폴백)")
+            from core.kics_real import RatioKICSEngine
+            self.kics_engine = RatioKICSEngine()
+            self.surrogate = None
     
     def _get_market_data(self, data_source: str = 'simulation') -> Dict[str, float]:
         """
@@ -128,15 +193,54 @@ class LiveTradingLoop:
             with self.latency_monitor.measure_context("ai_predict"):
                 action, is_fallback = self.engine.predict(obs)
             
-            # 4. K-ICS 비율 추정
+            # 4. K-ICS 비율 추정 (제안서 적용: Surrogate 사용)
             with self.latency_monitor.measure_context("kics_estimate"):
-                from core.kics_real import RatioKICSEngine
-                kics_engine = RatioKICSEngine()
-                scr_ratio = kics_engine.calculate_scr_ratio_batch(
-                    np.array([self.current_hedge]),
-                    np.array([features['Correlation']])
-                )[0]
+                scr_ratio = self._calculate_scr_with_surrogate(
+                    self.current_hedge,
+                    features['Correlation']
+                )
                 kics_ratio = (1.0 / scr_ratio) * 100 if scr_ratio > 0 else 999
+    
+    def _calculate_scr_with_surrogate(self, hedge_ratio, correlation):
+        """
+        SCR 계산 (Surrogate 우선, 폴백: 실제 엔진)
+        
+        [제안서 적용] DNN Surrogate 모델 사용 (밀리초 단위 고속 추론)
+        """
+        if self.use_surrogate and self.surrogate is not None:
+            try:
+                X = np.array([[hedge_ratio, correlation]])
+                
+                # 스케일러가 있으면 사용
+                if hasattr(self.surrogate, 'scaler_x') and self.surrogate.scaler_x is not None:
+                    X_scaled = self.surrogate.scaler_x.transform(X)
+                    scr_scaled = self.surrogate.predict(X_scaled)
+                    if hasattr(self.surrogate, 'scaler_y') and self.surrogate.scaler_y is not None:
+                        scr = self.surrogate.scaler_y.inverse_transform(scr_scaled.reshape(-1, 1))[0, 0]
+                    else:
+                        scr = scr_scaled[0]
+                else:
+                    scr = self.surrogate.predict(X)[0]
+                
+                return float(scr)
+            except Exception as e:
+                # Surrogate 실패 시 실제 엔진으로 폴백
+                if self.kics_engine is None:
+                    from core.kics_real import RatioKICSEngine
+                    self.kics_engine = RatioKICSEngine()
+                return self.kics_engine.calculate_scr_ratio_batch(
+                    np.array([hedge_ratio]),
+                    np.array([correlation])
+                )[0]
+        else:
+            # 실제 엔진 사용
+            if self.kics_engine is None:
+                from core.kics_real import RatioKICSEngine
+                self.kics_engine = RatioKICSEngine()
+            return self.kics_engine.calculate_scr_ratio_batch(
+                np.array([hedge_ratio]),
+                np.array([correlation])
+            )[0]
             
             # 5. Safety Layer 적용
             with self.latency_monitor.measure_context("safety_layer"):
