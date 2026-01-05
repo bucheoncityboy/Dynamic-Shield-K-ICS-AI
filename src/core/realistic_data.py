@@ -302,14 +302,45 @@ def generate_market_scenario(n_days=500, scenario='normal', use_real_data=True, 
             if os.path.exists(REAL_DATA_PATH):
                 _REAL_DATA_CACHE = pd.read_csv(REAL_DATA_PATH)
                 
-                # 데이터 전처리: VIX 기반 Correlation 생성 (데이터에 없으면)
+                # 데이터 전처리: 실제 Correlation 계산 (KOSPI와 FX의 실제 상관계수)
                 if 'Correlation' not in _REAL_DATA_CACHE.columns:
-                    # VIX 레벨에 따른 상관계수 추정
-                    vix = _REAL_DATA_CACHE['VIX'].values
-                    corr = np.where(vix >= 30, np.random.uniform(0.5, 0.8, len(vix)),
-                            np.where(vix >= 20, np.random.uniform(-0.2, 0.5, len(vix)),
-                                     np.random.uniform(-0.6, -0.2, len(vix))))
-                    _REAL_DATA_CACHE['Correlation'] = corr
+                    print("  [정보] Correlation 컬럼 없음. 실제 데이터로부터 계산합니다.")
+                    
+                    # KOSPI와 FX의 수익률 계산
+                    if 'KOSPI' in _REAL_DATA_CACHE.columns and 'FX' in _REAL_DATA_CACHE.columns:
+                        # 수익률 계산 (pct_change)
+                        kospi_returns = _REAL_DATA_CACHE['KOSPI'].pct_change().fillna(0)
+                        fx_returns = _REAL_DATA_CACHE['FX'].pct_change().fillna(0)
+                        
+                        # 롤링 윈도우로 상관계수 계산 (예: 60일 윈도우)
+                        window = 60
+                        correlations = []
+                        for i in range(len(_REAL_DATA_CACHE)):
+                            start_idx = max(0, i - window + 1)
+                            end_idx = i + 1
+                            if end_idx - start_idx >= 10:  # 최소 10일 필요
+                                corr = np.corrcoef(
+                                    kospi_returns.iloc[start_idx:end_idx],
+                                    fx_returns.iloc[start_idx:end_idx]
+                                )[0, 1]
+                                # NaN 처리
+                                if np.isnan(corr):
+                                    corr = 0.0
+                                correlations.append(corr)
+                            else:
+                                correlations.append(0.0)  # 초기값
+                        
+                        _REAL_DATA_CACHE['Correlation'] = correlations
+                        print(f"  ✓ 실제 Correlation 계산 완료 (롤링 {window}일 윈도우)")
+                        print(f"    - Correlation 범위: [{np.min(correlations):.3f}, {np.max(correlations):.3f}]")
+                    else:
+                        print("  [경고] KOSPI 또는 FX 컬럼 없음. VIX 기반 추정 사용.")
+                        # 폴백: VIX 기반 추정
+                        vix = _REAL_DATA_CACHE['VIX'].values
+                        corr = np.where(vix >= 30, np.random.uniform(0.5, 0.8, len(vix)),
+                                np.where(vix >= 20, np.random.uniform(-0.2, 0.5, len(vix)),
+                                         np.random.uniform(-0.6, -0.2, len(vix))))
+                        _REAL_DATA_CACHE['Correlation'] = corr
                 
                 # Train/Test 분리 (시간 기반)
                 split_idx = int(len(_REAL_DATA_CACHE) * TRAIN_RATIO)
