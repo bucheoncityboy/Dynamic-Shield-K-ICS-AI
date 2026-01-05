@@ -57,6 +57,58 @@ class KICSCalculator:
         """시뮬레이션 초기화 시 호출"""
         self.assets = self.initial_assets
         self.liabilities = self.initial_liabilities
+    
+    # ========================================
+    # Duration Gap 동적 조정 (ALM 관점)
+    # ========================================
+    
+    def update_duration(self, dur_asset: float = None, dur_liab: float = None):
+        """
+        Duration Gap 동적 조정 (제안서: "듀레이션 갭 실시간 반영")
+        
+        ALM 관점에서 자산/부채의 듀레이션을 실시간으로 업데이트.
+        채권 매매, 신규 계약, 만기 도래 등에 따라 변동.
+        
+        Args:
+            dur_asset: 자산 듀레이션 (기본: 현재값 유지)
+            dur_liab: 부채 듀레이션 (기본: 현재값 유지)
+            
+        Returns:
+            (duration_gap, impact_direction): 갭과 영향 방향
+            
+        누수/편향 없음: 현재 시점 데이터만 사용
+        """
+        if dur_asset is not None:
+            self.dur_asset = dur_asset
+        if dur_liab is not None:
+            self.dur_liab = dur_liab
+        
+        duration_gap = self.dur_liab - self.dur_asset
+        
+        # 영향 분석
+        if duration_gap > 0:
+            impact = "금리 상승 시 부채 > 자산 감소 → 가용자본 증가"
+        elif duration_gap < 0:
+            impact = "금리 상승 시 자산 > 부채 감소 → 가용자본 감소"
+        else:
+            impact = "금리 변동 영향 중립"
+        
+        return duration_gap, impact
+    
+    def get_duration_gap(self) -> float:
+        """현재 Duration Gap 반환"""
+        return self.dur_liab - self.dur_asset
+    
+    def get_alm_status(self) -> dict:
+        """ALM 상태 반환"""
+        gap = self.get_duration_gap()
+        return {
+            'dur_asset': self.dur_asset,
+            'dur_liab': self.dur_liab,
+            'duration_gap': gap,
+            'available_capital': self.assets - self.liabilities,
+            'rate_sensitivity': f"{abs(gap) * 100:.1f}bp per 1% rate change"
+        }
 
     def update_and_calculate(self, row, prev_row, hedge_ratio):
         """
