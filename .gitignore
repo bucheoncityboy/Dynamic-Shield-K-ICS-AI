@@ -30,6 +30,10 @@ models/timegan/timegan_model.pkl
 models/timegan/scaler.pkl
 models/timegan/params.pkl
 
+# Surrogate 모델 파일
+models/surrogate/*.pth
+models/surrogate/*.pkl
+
 # PPO 학습 모델
 src/validation/ppo_kics.zip
 *.zip
