@@ -89,13 +89,12 @@
 | normal | **4.67** | 🥇 Dynamic Shield |
 | 2008_crisis | **2.49** | 🥇 Dynamic Shield |
 | Low_Vol_Trap | **0.83** | 🥇 Dynamic Shield |
-| COVID19 | 0.04 | Rule-based |
 | Tail_Risk | **0.01** | 🥇 Dynamic Shield |
 | Correlation_Reversal | 0.00 | ⚠️ Safety Layer → 100% Hedge |
 | Rate_Surge | 0.00 | ⚠️ Safety Layer → 100% Hedge |
 | VIX_Sustained_High | 0.00 | ⚠️ Safety Layer → 100% Hedge |
 
-✅ **9개 시나리오에서 최고 효율, 3개 위기 시나리오에서는 Safety Layer가 100% 헤지로 안전하게 전환**
+✅ **8개 시나리오에서 최고 효율, 3개 위기 시나리오에서는 Safety Layer가 100% 헤지로 안전하게 전환**
 
 > 💡 **왜 3개 시나리오에서 100% Hedge가 이겼나요?**
 > - **Correlation_Reversal**: 상관관계가 양(+)으로 역전되면 Natural Hedge 효과 소멸 → 100% 헤지가 최적
