@@ -87,7 +87,8 @@ class RobustSurrogate:
         if self.use_pytorch:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             # Deep Network: 5개 hidden layer (512 → 256 → 128 → 64 → 32, 더 넓게)
-            self.model = KICSSurrogate(input_dim=2, hidden_dims=[512, 256, 128, 64, 32], output_dim=1, dropout_rate=0.1)
+            # Dropout 증가로 과적합 방지
+            self.model = KICSSurrogate(input_dim=2, hidden_dims=[512, 256, 128, 64, 32], output_dim=1, dropout_rate=0.2)
             self.model.to(self.device)
             self.optimizer = None
             self.criterion = nn.MSELoss()
@@ -129,18 +130,18 @@ class RobustSurrogate:
             dataset = TensorDataset(X_tensor, y_tensor)
             dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
             
-            # Optimizer 설정 (Adam with weight decay)
-            self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=1e-5)
+            # Optimizer 설정 (Adam with 더 강한 weight decay로 과적합 방지)
+            self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=5e-4)
             
-            # Learning Rate Scheduler (성능 개선을 위해)
+            # Learning Rate Scheduler (더 공격적으로 - Val loss 증가 시 빠르게 감소)
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimizer, mode='min', factor=0.5, patience=50
+                self.optimizer, mode='min', factor=0.5, patience=50, min_lr=learning_rate * 0.0001
             )
             
-            # Early Stopping을 위한 변수 (더 여유있게)
+            # Early Stopping을 위한 변수 (과적합 방지를 위해 더 빠르게 중단)
             best_val_loss = float('inf')
             patience_counter = 0
-            patience_limit = 200  # 100 → 200으로 증가
+            patience_limit = 100  # Val loss 증가 시 빠르게 중단
             
             # 학습 루프 (개선된 가중치 손실 함수 사용)
             for epoch in range(epochs):
@@ -153,30 +154,16 @@ class RobustSurrogate:
                     # Forward pass
                     predictions = self.model(batch_X)
                     
-                    # 개선된 가중치 손실: 높은 SCR Ratio에 훨씬 더 큰 가중치
-                    # (높은 값에서의 오차를 매우 크게 페널티)
-                    y_min = batch_y.min()
-                    y_max = batch_y.max()
-                    y_range = y_max - y_min + 1e-6
-                    
-                    # 가중치: 높은 값에 대해 지수적으로 증가
-                    normalized_y = (batch_y - y_min) / y_range
-                    # 가중치: 1.0 ~ 5.0 (높은 값에 5배 더 큰 페널티)
-                    weights = 1.0 + 4.0 * (normalized_y ** 2)  # 제곱으로 더 강하게
-                    
-                    # Huber Loss 사용 (outlier에 덜 민감하면서도 높은 값에 집중)
-                    base_loss = torch.nn.functional.huber_loss(
-                        predictions, batch_y, delta=0.01, reduction='none'
-                    )
-                    weighted_loss = (base_loss * weights).mean()
+                    # MSE Loss 사용 (안정적인 학습)
+                    loss = self.criterion(predictions, batch_y)
                     
                     # Backward pass
-                    weighted_loss.backward()
+                    loss.backward()
                     # Gradient clipping (안정적인 학습)
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     self.optimizer.step()
                     
-                    epoch_loss += weighted_loss.item()
+                    epoch_loss += loss.item()
                 
                 # Validation loss 계산 (early stopping용) - 전체 validation set 사용
                 self.model.eval()
@@ -522,14 +509,15 @@ def train_surrogate_model():
     # 학습 (더 많은 에포크, 더 작은 학습률로 정밀 학습, Early Stopping 포함)
     print("\n[모델 학습 시작]")
     print("  - 최대 에포크: 2000")
-    print("  - 초기 학습률: 0.001")
-    print("  - 배치 크기: 256")
-    print("  - 가중치 손실: 높은 SCR Ratio에 5배 더 큰 페널티")
-    print("  - Huber Loss 사용: Outlier에 덜 민감")
-    print("  - Learning Rate Scheduling: 성능 개선 없으면 자동 감소")
-    print("  - Early Stopping: 200 에포크 동안 개선 없으면 중단")
+    print("  - 초기 학습률: 0.0005 (과적합 방지를 위해 감소)")
+    print("  - 배치 크기: 128 (더 작은 배치로 정밀 학습)")
+    print("  - Loss: MSE Loss (안정적인 학습)")
+    print("  - Dropout: 0.2 (과적합 방지 강화)")
+    print("  - Weight Decay: 5e-4 (정규화 강화)")
+    print("  - Learning Rate Scheduling: ReduceLROnPlateau (factor=0.5, patience=50)")
+    print("  - Early Stopping: 100 에포크 동안 개선 없으면 중단 (과적합 빠른 감지)")
     
-    model.fit(X_train_scaled, y_train_scaled, epochs=2000, batch_size=256, learning_rate=0.001, verbose=True)
+    model.fit(X_train_scaled, y_train_scaled, epochs=2000, batch_size=128, learning_rate=0.0005, verbose=True)
     
     # ==========================================
     # 성능 평가 (실제 데이터 사용)
