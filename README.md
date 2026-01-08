@@ -179,13 +179,23 @@
 │   │   ├── shap_analysis.py           # Why Not 100% Hedge 분석
 │   │   └── ppo_kics.zip               # 학습된 PPO 모델
 │   │
+│   ├── dashboard/                     # 운영 대시보드
+│   │   └── operations_dashboard.py    # Streamlit 실시간 모니터링 (localhost:8501)
+│   │
+│   ├── realtime/                      # 실시간 시스템
+│   │   ├── live_mode.py               # 라이브 모드 실행
+│   │   ├── async_engine.py            # 비동기 추론 엔진
+│   │   ├── intraday.py                # 인트라데이 헤지 시스템
+│   │   └── latency.py                 # 지연시간 모니터링
+│   │
+│   ├── safety/                        # 안전 계층
+│   │   └── risk_control.py            # 리스크 컨트롤 모듈
+│   │
 │   └── phase6_final_review.py         # 최종 검토 스크립트
 │
 ├── tensorboard_logs/                  # PPO 학습 로그
-└── requirements.txt                   # 의존성
-```
+└──requirements.txt                    # 의존성
 
----
 
 ## 🚀 설치 및 실행
 
@@ -269,4 +279,5 @@ tensorboard --logdir=./tensorboard_logs/
 | ML | scikit-learn, hmmlearn |
 | 시각화 | Matplotlib, TensorBoard |
 | 데이터 | NumPy, Pandas, SciPy |
+
 
