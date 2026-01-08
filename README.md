@@ -1,4 +1,4 @@
-# Dynamic Shield: K-ICS 자본 최적화 AI 시스템(Team 저녁은 뉴욕에서)
+# Dynamic Shield: K-ICS 연계형 국면 대응 동적 환헤지 최적화 시스템(Team 저녁은 뉴욕에서)
 
 > **Capital Optimization, not Prediction**  
 > 환율 예측이 아닌 자본 최적화 - K-ICS 규제 대응 동적 헤지 전략
@@ -279,5 +279,6 @@ tensorboard --logdir=./tensorboard_logs/
 | ML | scikit-learn, hmmlearn |
 | 시각화 | Matplotlib, TensorBoard |
 | 데이터 | NumPy, Pandas, SciPy |
+
 
 
