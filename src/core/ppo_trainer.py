@@ -123,7 +123,7 @@ class PPOTrainer:
             self.n_steps = n_steps or ppo_config.get('n_steps', 2048)
             self.batch_size = batch_size or ppo_config.get('batch_size', 64)
             self.gamma = gamma or ppo_config.get('gamma', 0.99)
-            self.tensorboard_log = ppo_config.get('tensorboard_log', './tensorboard_logs/')
+            self.tensorboard_log = ppo_config.get('tensorboard_log')  # None이면 미사용
         except (ImportError, FileNotFoundError, KeyError):
             # 폴백: 기본값 사용
             self.algorithm = algorithm or 'PPO'
@@ -132,7 +132,7 @@ class PPOTrainer:
             self.n_steps = n_steps or 2048
             self.batch_size = batch_size or 64
             self.gamma = gamma or 0.99
-            self.tensorboard_log = './tensorboard_logs/'
+            self.tensorboard_log = None  # tensorboard 미설치 환경 대응
         
         self.env = None
         self.model = None
@@ -154,6 +154,12 @@ class PPOTrainer:
             lambda2 = 1000
         
         self.env = DummyVecEnv([lambda: KICSGymEnv(lambda2=lambda2)])
+        
+        # tensorboard 미설치 시 로깅 비활성화
+        try:
+            import tensorboard
+        except ImportError:
+            self.tensorboard_log = None
         
         # 알고리즘 선택
         if self.algorithm == 'PPO':
@@ -197,7 +203,7 @@ class PPOTrainer:
         self.model.learn(
             total_timesteps=self.total_timesteps,
             callback=[self.reward_callback, safety_callback],
-            progress_bar=True
+            progress_bar=False
         )
         
         print("\n[Training Complete]")

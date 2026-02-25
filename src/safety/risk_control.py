@@ -22,9 +22,10 @@ class RiskConfig:
     vix_transition_threshold: float = 25.0  # 전환 구간
     vix_normal_threshold: float = 20.0      # 정상 구간
     
-    # K-ICS 임계값
-    kics_critical_threshold: float = 100.0  # 즉시 100% 헤지
-    kics_danger_threshold: float = 130.0    # Level 1 구간 (< 130%)
+    # K-ICS 임계값 (3단계 Safety Layer)
+    kics_critical_threshold: float = 100.0  # Level 2: 즉시 100% 헤지
+    kics_level1_threshold: float = 130.0    # Level 1: 적기시정조치 예방, 점진적 상향
+    kics_danger_threshold: float = 130.0    # 경고 구간 (Level 1과 동일)
     kics_safe_threshold: float = 150.0      # 안전 구간
     
     # 헤지 비율 제한
@@ -94,43 +95,70 @@ class RiskController:
         current_hedge: float,
         vix: float,
         kics_ratio: float,
-        correlation: float = 0.0,
-        capital_loss: float = 0.0
+        correlation: float = 0.0
     ) -> Tuple[float, str]:
         """
-        Safety Rule 3단계 체계화 (v4.0 개선)
-        - Level 1: K-ICS < 130%
-        - Level 2: VIX > 40
-        - Level 3: Capital Loss (자본 손실)
+        Safety Rule 적용
+        
+        Args:
+            proposed_action: AI가 제안한 헤지 비율 변동 (-1 ~ 1)
+            current_hedge: 현재 헤지 비율 (0 ~ 1)
+            vix: 현재 VIX 지수
+            kics_ratio: 현재 K-ICS 비율 (%)
+            correlation: 주식-환율 상관계수
+            
+        Returns:
+            (safe_hedge_ratio, reason): 안전 처리된 헤지 비율과 사유
         """
         # 1. Action을 헤지 변동으로 변환 (±15%)
         hedge_change = proposed_action * self.config.max_hedge_change
         new_hedge = current_hedge + hedge_change
         
-        # === Safety Layer 3: Capital Loss (가장 심각한 실현 손실) ===
-        if capital_loss > 0.0:
+        # === Level 2: K-ICS < 100% → 즉시 100% 헤지 (규제 위반 방지) ===
+        if kics_ratio < self.config.kics_critical_threshold:
             self.state.is_derisking = True
-            self.state.last_action_reason = f"LEVEL 3: Capital Loss {capital_loss*100:.1f}%, FORCE 100% HEDGE"
+            self.state.derisking_target = self.config.emergency_hedge_target
+            self.state.last_action_reason = f"Level2: K-ICS {kics_ratio:.1f}% < 100%, FORCE 100% HEDGE"
             return 1.0, self.state.last_action_reason
-            
-        # === Safety Layer 2: VIX > 40 (시장 패닉) ===
-        if vix > self.config.vix_panic_threshold:
-            target = min(current_hedge + 0.15, 1.0)
-            self.state.last_action_reason = f"LEVEL 2: VIX={vix:.1f} > 40, Rapid Hedge Increase"
-            return target, self.state.last_action_reason
-            
-        # === Safety Layer 1: K-ICS < 130% (규제 경계) ===
-        if kics_ratio < self.config.kics_danger_threshold:
+        
+        # === Level 1: K-ICS < 130% → 점진적 De-risking (적기시정조치 예방) ===
+        if kics_ratio < self.config.kics_level1_threshold:
             self.state.consecutive_danger_days += 1
+            # 위험 구간: 단계적 헤지 증가
             target = min(current_hedge + self.config.gradual_derisking_step, 1.0)
-            self.state.last_action_reason = f"LEVEL 1: K-ICS {kics_ratio:.1f}% < 130%, Gradual Hedge Increase"
+            self.state.is_derisking = True
+            self.state.derisking_target = target
+            self.state.last_action_reason = f"Level1: K-ICS {kics_ratio:.1f}% < 130%, Gradual De-risking"
             return target, self.state.last_action_reason
         else:
             self.state.consecutive_danger_days = 0
-
-        # === 정상 구간 (Normal): AI 제안 수용 ===
-        self.state.last_action_reason = f"NORMAL: VIX={vix:.1f}, K-ICS={kics_ratio:.1f}%"
-        return self._clamp_hedge(new_hedge), self.state.last_action_reason
+        
+        # === Level 1 진행: Gradual De-risking ===
+        if self.state.is_derisking:
+            if current_hedge >= self.state.derisking_target:
+                self.state.is_derisking = False
+                self.state.last_action_reason = "De-risking Complete"
+            else:
+                new_hedge = min(current_hedge + self.config.gradual_derisking_step, 
+                               self.state.derisking_target)
+                self.state.last_action_reason = "Gradual De-risking in Progress"
+                return self._clamp_hedge(new_hedge), self.state.last_action_reason
+        
+        # === Safety Layer 2 (PDF 5.1): VIX > 40 또는 유동성 위기 → 즉시 100% 헤지 ===
+        if vix >= self.config.vix_panic_threshold:
+            self.state.last_action_reason = f"Level2: VIX={vix:.1f}>=40, FORCE 100% HEDGE"
+            return 1.0, self.state.last_action_reason
+        
+        elif vix >= self.config.vix_transition_threshold:
+            # 전환: AI 제안을 상향 바이어스
+            biased_hedge = max(new_hedge, current_hedge)
+            self.state.last_action_reason = f"TRANSITION: VIX={vix:.1f}"
+            return self._clamp_hedge(biased_hedge), self.state.last_action_reason
+        
+        else:
+            # 정상: AI 제안 수용 (범위 제한만 적용)
+            self.state.last_action_reason = f"NORMAL: VIX={vix:.1f}"
+            return self._clamp_hedge(new_hedge), self.state.last_action_reason
     
     def _clamp_hedge(self, hedge: float) -> float:
         """헤지 비율 범위 제한"""
@@ -145,11 +173,11 @@ class RiskController:
         """
         penalty = 0.0
         
-        # K-ICS 페널티
+        # K-ICS 페널티 (Level 2: <100%, Level 1: <130%)
         if kics_ratio < self.config.kics_critical_threshold:
-            penalty -= 1000.0  # 치명적
-        elif kics_ratio < self.config.kics_danger_threshold:
-            penalty -= (self.config.kics_danger_threshold - kics_ratio) * 10
+            penalty -= 1000.0  # Level 2 치명적
+        elif kics_ratio < self.config.kics_level1_threshold:
+            penalty -= (self.config.kics_level1_threshold - kics_ratio) * 5
         
         # VIX 미대응 페널티는 apply_safety_rules에서 처리
         
@@ -183,7 +211,7 @@ if __name__ == "__main__":
         (0.0, 0.5, 15, 180, "NORMAL: 유지"),
         (0.0, 0.5, 45, 180, "PANIC: 헤지 증가"),
         (0.0, 0.5, 15, 95, "CRITICAL: 100% 강제"),
-        (0.0, 0.5, 15, 115, "DANGER: 단계적 증가"),
+        (0.0, 0.5, 15, 115, "Level1: 단계적 증가"),
         (-0.5, 0.8, 15, 200, "NORMAL: AI 제안 수용 (감소)"),
     ]
     
@@ -193,7 +221,7 @@ if __name__ == "__main__":
     for action, hedge, vix, kics, expected in test_cases:
         controller.reset()
         new_hedge, reason = controller.apply_safety_rules(action, hedge, vix, kics)
-        status = "O" if expected.split(":")[0] in reason else "?"
+        status = "✓" if expected.split(":")[0] in reason else "?"
         print(f"{status} VIX={vix:2d}, K-ICS={kics:3d}%, Hedge {hedge:.1f}->{new_hedge:.1f} | {reason}")
     
     print("\n[설정값]")
