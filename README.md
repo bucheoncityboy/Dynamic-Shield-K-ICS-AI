@@ -1,5 +1,4 @@
-# Dynamic Shield v4.0: K-ICS 연계형 국면 대응 동적 환헤지 최적화 시스템
-### Team 저녁은 뉴욕에서
+# Dynamic Shield: K-ICS 연계형 국면 대응 동적 환헤지 최적화 시스템(Team 저녁은 뉴욕에서)
 
 > **"환율 예측을 넘어 자본의 회복탄력성으로: K-ICS 기반 ALM 혁신"**
 
@@ -11,7 +10,7 @@
 
 본 프로젝트는 단순한 환헤지 툴을 넘어, **K-ICS(신지급여력제도)** 하에서 보험사의 자본 비용(Capital Cost)을 최적화하고 자산부채종합관리(ALM)의 효율성을 극대화하는 **AI 기반 전략 솔루션**입니다. 전통적인 기계적 헤지가 초래하는 '비용의 늪'을 탈피하여, 규제 환경을 역이용한 **구조적 알파(Structural Alpha)** 창출을 목표로 합니다.
 
-### 2. 핵심 발견: 분산 효과 최적화 (Diversification Optimization)
+### 2. 핵심 발견: 리스크의 역설 (Risk Paradox)
 
 전통적인 '100% 환헤지' 관행은 환위험은 제거하지만, 오히려 보험사의 전체 요구자본을 증가시키는 역설을 초래합니다.
 
@@ -25,29 +24,22 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 
 ### 3. 기술적 차별점: Tech-Enabled Investment
 
-| 기술 | v3.0 | v4.0 (현재) |
-|---|---|---|
-| **국면 대응형 엔진** | HMM 3국면 (단변량) | **HMM 4국면** (다변량 5개 피처: VIX, VIX_Change, FX_MA_Divergence, Yield_Spread, Correlation) |
-| **지능형 리밸런싱** | PPO 단순 보상 | **제약 조건부 PPO** (Lagrangian Multiplier: K-ICS ≥ 150% 제약) |
-| **Surrogate Model** | MLP 회귀 | **Quantile Regression** (Pinball Loss τ=0.90, 보수적 하한 예측) |
-| **Safety Layer** | Kill Switch 1단계 | **3-Step Safety Layer** (Level 1: K-ICS 감시 → Level 2: VIX 긴급 → Level 3: 최종 차단) |
-| **헤지 비용** | 비현실적 (60%) | **현실적 (연 1.5%, 일할 0.015/252)** |
-| **XAI** | 미구현 | **SHAP 기반 실시간 의사결정 분석** |
-| **K-ICS 계산** | 표준모형만 | **표준/내부모형 이중 트랙** 지원 |
+기술은 목적이 아닌, 인간의 인지 한계를 넘어서는 정교한 투자 의사결정을 위한 **엔진**으로 기능합니다.
+
+| 기술 | 설명 |
+|---|---|
+| **국면 대응형 엔진** | HMM(은닉 마르코프 모델)을 통해 시장을 정상/전이/위기 3단계로 정밀 진단 |
+| **지능형 리밸런싱** | PPO(심층 강화학습) 에이전트가 K-ICS 비율과 헤지 비용을 실시간 반영하여 최적의 포지션 유지 |
+| **초저지연 규제 대응** | DNN 대리 모델(Surrogate Model)을 구축하여 복잡한 K-ICS 산출 속도를 밀리초(ms) 단위로 단축, 실시간 리스크 방어 가능 |
 
 ### 4. 실무적 신뢰성 및 확장성
 
-- **3-Step Safety Layer:** AI의 오작동을 방지하기 위해 3단계 안전장치 탑재
-  - Level 1: K-ICS 비율 < 100% → 즉시 100% 헤지 강제
-  - Level 2: VIX > 40 → Emergency De-risking (단계적 증가)
-  - Level 3: 최대 변동폭 ±15% 제한 (급발진 방지)
-- **글로벌 확장성:** 원-달러뿐만 아니라 글로벌 거점의 현지 통화 헤지 전략에도 즉시 적용 가능
-
----
+- **금융 안전장치(Safety Layer):** AI의 오작동을 방지하기 위해 K-ICS 비율이 임계치 미만일 경우 즉시 100% 헤지로 전환되는 **'Kill Switch'** 탑재로 운용 안정성 확보
+- **글로벌 확장성:** 원-달러뿐만 아니라 한화생명의 글로벌 거점(베트남, 미국 등)의 현지 통화 헤지 전략에도 즉시 적용 가능한 유연한 프레임워크
 
 ## 🏆 주요 결과 (Real Data: 5,292일)
 
-### Phase 1: 분산 효과 최적화 증명
+### Phase 1: Risk Paradox 증명
 | 상관계수 | 최적 헤지 비율 | SCR (최적) | SCR (100% 헤지) | 자본 절감률 |
 |:---:|:---:|:---:|:---:|:---:|
 | -0.6 | 0% | 0.1190 | 0.1429 | **10.38%** |
@@ -58,29 +50,26 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 
 ✅ **상관계수가 낮을수록(음수) 더 큰 자본 절감 효과 입증 (최대 10.38%)**
 
-### Phase 2: AI Surrogate Model (v4.0: Quantile Regression)
-| 지표 | v3.0 | v4.0 |
-|---|---|---|
-| Loss Function | MSE | **Pinball Loss (τ=0.90)** |
-| Architecture | MLP 3층 | **DNN 5층** (512→256→128→64→32, ELU) |
-| MAPE | 0.0518% | **< 0.05%** |
-| 과적합 방지 | 없음 | **Early Stopping + Dropout + Weight Decay** |
-| Scaler Anti-Leakage | 없음 | **Train Only fit_transform** |
-| 추론 속도 | 실시간 가능 | 실시간 가능 |
+### Phase 2: AI Surrogate Model
+| 지표 | 결과 |
+|---|---|
+| MAPE (Mean Absolute Percentage Error) | **0.0518%** |
+| 확장성 테스트 (10B KRW) | **Pass** |
+| Surrogate vs Real SCR 오차율 | **0.03%** |
+| 추론 속도 | 실시간 가능 |
 
-✅ **보수적 하한 예측(90th percentile)으로 규제 리스크 완화**
+✅ **MLP 신경망이 K-ICS 계산을 0.05% 오차로 근사**
 
-### Phase 3: Regime Detection (HMM v4.0: 4국면 다변량)
-| 시장 국면 | 상태 | 입력 피처 | 헤지 전략 |
-|---|---|---|---|
-| Normal | 낮은 VIX | VIX, VIX_Change, FX_MA_Divergence, Yield_Spread, Correlation | 분산 효과 극대화 (낮은 헤지) |
-| Transition | 변동성 확대 전조 | ← 동일 5개 피처 | 점진적 헤지 증가 |
-| Safe-haven | 안전자산 선호 | ← 동일 5개 피처 | 방어적 포지션 |
-| Panic | 극단적 위기 | ← 동일 5개 피처 | Emergency 100% 헤지 |
+### Phase 3: Regime Detection (HMM)
+| 시장 국면 | 상태 ID | Correlation 범위 | 최적 헤지 | 평균 SCR |
+|---|---|---|---|---|
+| Normal | 2 | [-0.6, -0.2) | 0.7% | 0.1144 |
+| Transition | 0 | [-0.2, 0.5) | 1.0% | 0.0857 |
+| Panic | 1 | [0.5, 0.9) | 0.3% | 0.0680 |
 
-✅ **v3.0(3국면) → v4.0(4국면): Safe-haven 국면 추가로 선제 대응력 강화**
+✅ **Hidden Markov Model로 3개 시장 국면 자동 분류 (5,292일 학습)**
 
-### Phase 4: RL Training (PPO v4.0: Lagrangian Constrained)
+### Phase 4: RL Training (PPO)
 | 지표 | 결과 |
 |---|---|
 | Total Timesteps | 50,000 |
@@ -90,14 +79,19 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 | Safety Layer Triggers | 3,456회 |
 | 학습 데이터 | 3,704일 (70%) |
 | 테스트 데이터 | 1,588일 (30%) |
-| **보상 함수** | **Lagrangian: 자본효율 - λ₁·헤지비용 - λ₂·턴오버 - λ₃·K-ICS페널티** |
-| **K-ICS 페널티** | **λ₃=1000, K-ICS < 150% 시 강력 페널티** |
 
 ✅ **PPO 에이전트가 K-ICS 999% 유지하며 학습 (규제 기준 100%의 약 10배)**
 
-### Phase 5: Backtesting & Validation
+#### PPO 훈련 진행 (Reward 추이)
+| Step | Episodes | Avg Reward (last 10) |
+|------|----------|----------------------|
+| 5,000 | 10 | 1,263.00 |
+| 10,000 | 20 | 1,332.31 |
+| 25,000 | 50 | 1,290.94 |
+| 50,000 | 100 | **1,301.36** |
 
-#### 5.1 성과 비교 (All Scenarios, 현실적 비용 1.5% 적용)
+### Phase 5: Backtesting & Validation
+#### 5.1 성과 비교 (All Scenarios)
 | 전략 | CAGR | Sharpe | MDD | RCR | Avg SCR | Net Benefit |
 |---|---|---|---|---|---|---|
 | 100% Hedge | -0.40% | 0.0000 | -0.79% | 0.00 | 0.1000 | -0.79억 |
@@ -123,29 +117,26 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 | 점진적 증가 검증 | Max step ≤ 0.15 **PASS** ✅ |
 | K-ICS < 100% 페널티 테스트 | Agent 100% 헤지 전환 **PASS** ✅ |
 
-✅ **Dynamic Shield는 "SWEET SPOT" — 리스크↓ + 비용↓ 동시 달성!**
 
----
+✅ **Dynamic Shield는 "SWEET SPOT" - 리스크 1.97%p↓, 비용 59.79%p↓ 동시 달성!**
+
 
 ## ✅ 검증 결과 요약
 
 ### Logic Consistency Checks
 | 항목 | 상태 | 결과 |
 |---|---|---|
-| 분산 효과 최적화 | ✅ PASS | 5/5 시나리오 증명 |
-| Safety Layer | ✅ PASS | 3-Step Emergency De-risking 정상 작동 |
+| Risk Paradox | ✅ PASS | 5/5 시나리오 증명 |
+| Safety Layer | ✅ PASS | Emergency De-risking 정상 작동 |
 | Surrogate Error | ✅ PASS | 0.03% (< 5% 기준) |
-| Data Leakage | ✅ PASS | Train/Test 시간 기반 분리, Scaler Anti-Leakage |
-| Overfitting | ✅ PASS | Early Stopping + Dropout + Weight Decay |
 
-### v4.0 코드 품질
+### Award-Winning Items
 | 항목 | 상태 |
 |---|---|
-| 현실적 헤지 비용 (1.5%) | ✅ 전체 코드 반영 |
-| 데이터 누수 방지 | ✅ StandardScaler Train-only fit |
-| 과적합 방지 | ✅ Early Stopping + Val 분리 |
-| SHAP XAI | ✅ 실제 데이터 기반 분석 |
-| 용어 일관성 | ✅ 분산 효과 최적화 통일 |
+| RCR Metric | ✅ 구현 완료 |
+| Code Philosophy | ✅ "Capital Optimization, not Prediction" 명시 |
+| Why Not Analysis (SHAP) | ✅ 시각화 완료 |
+| Efficient Frontier | ✅ 시각화 완료 |
 
 ---
 
@@ -153,30 +144,29 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 Dynamic Shield System v4.0                   │
+│                    Dynamic Shield System                    │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
 │  │ K-ICS Engine│  │ AI Surrogate│  │ Regime Detector     │ │
-│  │ (Ground     │──│ (Quantile   │──│ (HMM 4-State        │ │
-│  │  Truth)     │  │  Regression)│  │  Multivariate)      │ │
-│  │ 표준/내부   │  │ τ=0.90      │  │ 5 Features          │ │
+│  │ (Ground     │──│ (MLP Neural │──│ (Hidden Markov      │ │
+│  │  Truth)     │  │  Network)   │  │  Model)             │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘ │
 │         │                │                    │             │
 │         └────────────────┼────────────────────┘             │
 │                          ▼                                  │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │         PPO RL Agent (Lagrangian Constrained)           ││
+│  │              PPO RL Agent (stable-baselines3)           ││
 │  │  - State: [Hedge_Ratio, VIX, Correlation, SCR_Ratio]   ││
 │  │  - Action: Continuous [-1, 1] → Hedge Adjustment       ││
-│  │  - Reward: CapEff - λ₁·Cost - λ₂·Turnover - λ₃·KICS  ││
+│  │  - Reward: Capital Efficiency - Cost - K-ICS Penalty   ││
 │  └─────────────────────────────────────────────────────────┘│
 │                          │                                  │
 │                          ▼                                  │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │               3-Step Safety Layer                       ││
-│  │  Level 1: K-ICS < 100% → Force 100% Hedge              ││
-│  │  Level 2: VIX > 40 → Emergency De-risking (Gradual)    ││
-│  │  Level 3: Max Step ±15% per period (급발진 방지)        ││
+│  │                    Safety Layer                         ││
+│  │  - VIX > 40: Emergency De-risking (Gradual)            ││
+│  │  - K-ICS < 100%: Force 100% Hedge (-1000 penalty)      ││
+│  │  - Max Step: ±10% per period (급발진 방지)              ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -186,52 +176,48 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 ## 📁 프로젝트 구조
 
 ```
-Dynamic-Shield-K-ICS-AI/
+한화/
 ├── DATA/
-│   └── data/
-│       └── Dynamic_Shield_Data_v4.csv    # 실제 시장 데이터 (5,292일)
+│   └── Dynamic_Shield_Data_v4.csv    # 실제 시장 데이터 (5,292일)
 │
 ├── src/
-│   ├── core/                              # 핵심 모듈
-│   │   ├── kics_real.py                   # K-ICS 엔진 (표준/내부모형 이중 트랙)
-│   │   ├── kics_surrogate.py              # Quantile Regression Surrogate (τ=0.90)
-│   │   ├── regime.py                      # HMM 4국면 다변량 탐지기
-│   │   ├── environment.py                 # RL 환경 (Lagrangian Reward)
-│   │   ├── gym_environment.py             # Gymnasium 호환 환경
-│   │   ├── ppo_trainer.py                 # PPO 훈련 (stable-baselines3)
-│   │   ├── realistic_data.py              # 현실적 데이터 로더 (Train/Test 분리)
-│   │   ├── agent.py                       # Dynamic Shield 에이전트
-│   │   └── system.py                      # 통합 시스템
+│   ├── core/                          # 핵심 모듈
+│   │   ├── kics_real.py               # K-ICS 엔진 (Ground Truth)
+│   │   ├── kics_surrogate.py          # AI Surrogate 모델
+│   │   ├── regime.py                  # HMM 시장 국면 탐지
+│   │   ├── environment.py             # RL 환경
+│   │   ├── agent.py                   # Dynamic Shield 에이전트
+│   │   ├── gym_environment.py         # Gymnasium 호환 환경
+│   │   ├── ppo_trainer.py             # PPO 훈련 (stable-baselines3)
+│   │   ├── system.py                  # 통합 시스템
+│   │   └── realistic_data.py          # 현실적 데이터 로더
 │   │
-│   ├── validation/                        # 검증 모듈
-│   │   ├── backtest.py                    # 백테스팅 (OOS 비교표 + 통계 검정)
-│   │   ├── proof_diversification.py       # 분산 효과 최적화 증명
-│   │   ├── shap_analysis.py               # SHAP XAI (실제 데이터 기반)
-│   │   ├── solvency_visualizer.py         # COVID-19 K-ICS 방어 시각화
-│   │   ├── stress_safety.py               # Safety Layer 스트레스 테스트
-│   │   ├── advanced_viz.py                # Efficient Frontier 시각화
-│   │   └── ppo_kics.zip                   # 학습된 PPO 모델
+│   ├── validation/                    # 검증 모듈
+│   │   ├── backtest.py                # 백테스팅 (Train/Test 분리)
+│   │   ├── proof_risk_paradox.py      # Risk Paradox 증명
+│   │   ├── solvency_visualizer.py     # COVID-19 K-ICS 방어 시각화
+│   │   ├── stress_safety.py           # Safety Layer 스트레스 테스트
+│   │   ├── advanced_viz.py            # Efficient Frontier 시각화
+│   │   ├── shap_analysis.py           # Why Not 100% Hedge 분석
+│   │   └── ppo_kics.zip               # 학습된 PPO 모델
 │   │
-│   ├── safety/                            # 안전 계층
-│   │   └── risk_control.py                # 3-Step Safety Layer
+│   ├── dashboard/                     # 운영 대시보드
+│   │   └── operations_dashboard.py    # Streamlit 실시간 모니터링 (localhost:8501)
 │   │
-│   ├── realtime/                          # 실시간 시스템
-│   │   ├── live_mode.py                   # 라이브 모드 실행
-│   │   ├── async_engine.py                # 비동기 추론 엔진
-│   │   ├── intraday.py                    # 인트라데이 헤지 시스템
-│   │   └── latency.py                     # 지연시간 모니터링
+│   ├── realtime/                      # 실시간 시스템
+│   │   ├── live_mode.py               # 라이브 모드 실행
+│   │   ├── async_engine.py            # 비동기 추론 엔진
+│   │   ├── intraday.py                # 인트라데이 헤지 시스템
+│   │   └── latency.py                 # 지연시간 모니터링
 │   │
-│   ├── dashboard/                         # 운영 대시보드
-│   │   └── operations_dashboard.py        # Streamlit 실시간 모니터링
+│   ├── safety/                        # 안전 계층
+│   │   └── risk_control.py            # 리스크 컨트롤 모듈
 │   │
-│   └── main.py                            # CLI 통합 실행 스크립트
+│   └── phase6_final_review.py         # 최종 검토 스크립트
 │
-├── 개선방안.md                             # v3.0→v4.0 개선 내역 (P0~P3)
-├── requirements.txt                       # 의존성
-└── .gitignore
-```
+├── tensorboard_logs/                  # PPO 학습 로그
+└──requirements.txt                    # 의존성
 
----
 
 ## 🚀 설치 및 실행
 
@@ -241,47 +227,67 @@ Dynamic-Shield-K-ICS-AI/
 conda create -n quant python=3.11 pytorch cpuonly -c pytorch -y
 
 # 의존성 설치
-pip install stable-baselines3 gymnasium hmmlearn scikit-learn matplotlib pandas numpy scipy shap
+pip install stable-baselines3 gymnasium hmmlearn scikit-learn matplotlib pandas numpy scipy
+
+# Jupyter 커널 등록 (선택)
+python -m ipykernel install --user --name quant --display-name "(Quant)"
 ```
 
-### 2. CLI 실행 (권장)
-```bash
-cd src
-
-# 전체 파이프라인 (검증 → 학습 → 백테스트)
-python main.py --mode all
-
-# 개별 실행
-python main.py --mode validate    # 시스템 검증
-python main.py --mode train       # PPO 학습
-python main.py --mode backtest    # 백테스트
-```
-
-### 3. 개별 스크립트 실행
+### 2. 전체 파이프라인 실행
 ```bash
 cd src/core
-python kics_surrogate.py          # Surrogate 모델 학습
-python ppo_trainer.py             # PPO 학습
 
+# Phase 1-2: K-ICS Engine + AI Surrogate
+python kics_real.py
+python kics_surrogate.py
+
+# Phase 3: Regime Detection
+python regime.py
+python system.py
+
+# Phase 4: RL Training (PPO)
+python ppo_trainer.py
+
+# Phase 5: Validation
 cd ../validation
-python proof_diversification.py   # 분산 효과 증명
-python backtest.py                # 백테스팅 + 통계 검정
-python shap_analysis.py           # SHAP XAI 분석
+python proof_risk_paradox.py      # Risk Paradox 증명
+python solvency_visualizer.py     # COVID-19 방어 시각화
 python stress_safety.py           # Safety Layer 테스트
+python backtest.py                # 백테스팅
+python advanced_viz.py            # Efficient Frontier
+python shap_analysis.py           # Why Not 100% Hedge
+
+# Phase 6: Final Review
+cd ..
+python phase6_final_review.py
+```
+
+### 3. TensorBoard 모니터링
+```bash
+tensorboard --logdir=./tensorboard_logs/
+# 브라우저에서 http://localhost:6006 접속
 ```
 
 ---
 
 ## 📊 생성되는 시각화 파일
 
-| 파일명 | 설명 |
-|---|---|
-| `ppo_training_result.png` | PPO 학습 진행 그래프 |
-| `diversification_proof.png` | 분산 효과 최적화 증명 그래프 |
-| `kics_defense_result.png` | COVID-19 시나리오 K-ICS 방어 |
-| `backtest_result_ai.png` | 백테스팅 성과 비교 |
-| `efficient_frontier.png` | 효율적 투자선 (Risk vs Cost) |
-| `shap_why_not_analysis.png` | Why Not 100% Hedge 분석 |
+| 파일명 | 설명 | 위치 |
+|---|---|---|
+| `ppo_training_result.png` | PPO 학습 진행 그래프 | `src/core/` |
+| `risk_paradox_proof.png` | Risk Paradox 증명 그래프 | `src/validation/` |
+| `kics_defense_result.png` | COVID-19 시나리오 K-ICS 방어 | `src/validation/` |
+| `backtest_result_ai.png` | 백테스팅 성과 비교 | `src/validation/` |
+| `efficient_frontier.png` | 효율적 투자선 (Risk vs Cost) | `src/validation/` |
+| `counterfactual_dashboard.png` | 의사결정 경계 | `src/validation/` |
+| `shap_why_not_analysis.png` | Why Not 100% Hedge 분석 | `src/validation/` |
+
+
+
+### 결론
+1. **Natural Hedge 효과**: 주식-환율 음의 상관관계로 분산 효과
+2. **헤지 비용 절감**: 불필요한 오버헤지 비용 제거
+3. **Risk Paradox**: 적정 헤지가 완전 헤지보다 위험이 낮음
 
 ---
 
@@ -293,22 +299,9 @@ python stress_safety.py           # Safety Layer 테스트
 | RL Framework | stable-baselines3, Gymnasium |
 | 딥러닝 | PyTorch 2.0+ |
 | ML | scikit-learn, hmmlearn |
-| XAI | SHAP |
 | 시각화 | Matplotlib, TensorBoard |
 | 데이터 | NumPy, Pandas, SciPy |
 
----
 
-## 📋 v4.0 업데이트 로그
 
-| 항목 | 변경 내용 |
-|---|---|
-| **헤지 비용** | 비현실적 60% → **현실적 1.5% (연간)** |
-| **HMM** | 3국면 단변량 → **4국면 다변량** (VIX, VIX_Change, FX_MA_Divergence, Yield_Spread, Correlation) |
-| **PPO 보상** | 단순 효율 → **Lagrangian Multiplier** (K-ICS ≥ 150% 제약) |
-| **Safety Layer** | Kill Switch 1단계 → **3-Step Safety Layer** |
-| **Surrogate** | MSE 회귀 → **Quantile Regression** (Pinball Loss τ=0.90) |
-| **XAI** | 미구현 → **SHAP 기반 실시간 분석** |
-| **K-ICS 계산** | 표준모형만 → **표준/내부모형 이중 트랙** |
-| **용어** | Risk Paradox → **분산 효과 최적화** |
-| **데이터 누수** | 미검증 → **Train-only Scaler + 시간 기반 분리** |
+
