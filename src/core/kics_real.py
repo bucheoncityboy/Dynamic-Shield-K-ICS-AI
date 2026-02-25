@@ -9,7 +9,9 @@ class KICSCalculator:
     2. 자산(Assets)과 부채(Liabilities)의 듀레이션 갭에 따른 자본 변동 계산
     3. 규제 충격 시나리오를 적용해 요구자본(SCR) 및 K-ICS 비율 산출
     """
-    def __init__(self, initial_assets=None, initial_liabilities=None):
+    def __init__(self, initial_assets=None, initial_liabilities=None, use_internal_model=True):
+        self.use_internal_model = use_internal_model
+        self.current_corr = -0.25
         # Config 로드 시도
         try:
             from config_loader import ConfigLoader
@@ -110,14 +112,18 @@ class KICSCalculator:
             'rate_sensitivity': f"{abs(gap) * 100:.1f}bp per 1% rate change"
         }
 
-    def update_and_calculate(self, row, prev_row, hedge_ratio):
+    def update_and_calculate(self, row, prev_row, hedge_ratio, correlation=None):
         """
         매일(Step) 호출되어 자산/부채를 갱신하고 K-ICS 비율을 반환
         """
         if prev_row is None:
             # 첫날은 변동 없음, 초기 비율 반환
-            return self._compute_ratio(hedge_ratio)
+            pass
             
+        if correlation is not None:
+            self.current_corr = correlation if self.use_internal_model else -0.25
+        elif 'Correlation' in row:
+            self.current_corr = row['Correlation'] if self.use_internal_model else -0.25
         # 1. 시장 변동폭 계산
         # (1) 주식 수익률
         if prev_row['KOSPI'] > 0:
@@ -164,9 +170,9 @@ class KICSCalculator:
         self.liabilities = new_liabilities
         
         # 4. K-ICS 비율 산출
-        return self._compute_ratio(hedge_ratio)
+        return self._compute_ratio(hedge_ratio, correlation)
         
-    def _compute_ratio(self, hedge_ratio):
+    def _compute_ratio(self, hedge_ratio, correlation=None):
         """현재 자산/부채 상태에서 K-ICS 비율 계산 (규제 충격 시나리오 적용)"""
         available_capital = self.assets - self.liabilities
         
@@ -186,8 +192,19 @@ class KICSCalculator:
         gap = self.dur_liab - self.dur_asset
         risk_rate = self.assets * self.w_bond * gap * self.rate_shock 
         
-        # 통합 리스크 (단순 합산 - 보수적 관점)
-        total_risk = risk_equity + risk_fx + risk_rate
+        # ========================================
+        # [P3] 표준모형 vs 내부모형 이중 트랙
+        # ========================================
+        if correlation is not None:
+            rho = correlation if self.use_internal_model else -0.25
+        else:
+            rho = self.current_corr if self.use_internal_model else -0.25
+        
+        market_risk_sq = (risk_equity ** 2) + (risk_fx ** 2) + (2 * rho * risk_equity * risk_fx)
+        market_risk = np.sqrt(max(market_risk_sq, 0))
+        
+        # 총 리스크 (보수적 합산)
+        total_risk = market_risk + risk_rate
         
         if total_risk <= 0: return 999.0 # 리스크 없음 (매우 안전)
         
@@ -202,7 +219,8 @@ class RatioKICSEngine:
     kics_surrogate.py의 AI Surrogate 학습을 위한 인터페이스.
     헤지 비율과 상관관계를 입력받아 SCR 비율을 배치로 계산.
     """
-    def __init__(self, initial_assets=None, initial_liabilities=None):
+    def __init__(self, initial_assets=None, initial_liabilities=None, use_internal_model=True):
+        self.use_internal_model = use_internal_model
         # Config 로드 시도 (KICSCalculator와 동일한 로직)
         try:
             from config_loader import ConfigLoader
@@ -254,8 +272,12 @@ class RatioKICSEngine:
             SCR 비율 배열 (0~1 범위로 정규화)
         """
         hedge_ratios = np.asarray(hedge_ratios)
-        correlations = np.asarray(correlations)
         
+        if not self.use_internal_model:
+            correlations = np.full_like(correlations, -0.25)
+            
+        # [P3] 표준모형 vs 내부모형 이중 트랙
+        rho = np.asarray(correlations)
         available_capital = self.initial_assets - self.initial_liabilities
         
         # 주식 리스크 (충격)
@@ -275,7 +297,7 @@ class RatioKICSEngine:
         # ρ < 0 (음의 상관): 분산 효과로 위험 감소
         # ρ > 0 (양의 상관): 위험 집중으로 위험 증가
         # ========================================
-        market_risk_sq = (risk_equity ** 2) + (risk_fx ** 2) + (2 * correlations * risk_equity * risk_fx)
+        market_risk_sq = (risk_equity ** 2) + (risk_fx ** 2) + (2 * rho * risk_equity * risk_fx)
         market_risk = np.sqrt(np.maximum(market_risk_sq, 0))  # 음수 방지
         
         # 총 리스크 = 시장 리스크 + 금리 리스크 (보수적 합산)

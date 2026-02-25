@@ -260,12 +260,12 @@ def validate_safety_layer() -> Tuple[bool, Dict[str, Any]]:
 
 def validate_risk_paradox() -> Tuple[bool, Dict[str, float]]:
     """
-    Risk Paradox 검증
+    분산 효과 최적화 검증
     
     검증: 헤지를 늘리면 SCR이 감소하는가?
     """
     print("\n" + "=" * 60)
-    print("[4] Risk Paradox 검증")
+    print("[4] 분산 효과 최적화 검증")
     print("=" * 60)
     
     try:
@@ -331,7 +331,7 @@ def run_full_validation() -> Dict[str, Any]:
     passed, metrics = validate_safety_layer()
     results['safety_layer'] = {'passed': passed, 'metrics': metrics}
     
-    # 4. Risk Paradox 검증
+    # 4. 분산 효과 최적화 검증
     passed, metrics = validate_risk_paradox()
     results['risk_paradox'] = {'passed': passed, 'metrics': metrics}
     

@@ -151,15 +151,15 @@ def run_validate(args):
     except Exception as e:
         print(f"  ✗ 지연시간 검증 실패: {e}")
     
-    # 4. Risk Paradox 검증
-    print("\n[4/4] Risk Paradox 검증...")
+    # 4. 분산 효과 최적화 검증
+    print("\n[4/4] 분산 효과 최적화 검증...")
     try:
-        from validation.proof_risk_paradox import prove_risk_paradox
+        from validation.proof_diversification import prove_risk_paradox
         prove_risk_paradox()
         results['risk_paradox'] = True
-        print("  ✓ Risk Paradox 증명 완료")
+        print("  ✓ 분산 효과 최적화 증명 완료")
     except Exception as e:
-        print(f"  ✗ Risk Paradox 검증 실패: {e}")
+        print(f"  ✗ 분산 효과 최적화 검증 실패: {e}")
     
     # 결과 요약
     print("\n" + "=" * 60)

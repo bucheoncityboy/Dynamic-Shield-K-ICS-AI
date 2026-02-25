@@ -33,21 +33,21 @@ class KICSEnvironment:
         - 2: 헤지 비율 5% 증가
         - 3: 헤지 비율 10% 증가 (패닉 대응)
     
-    Reward Function:
-        R_t = (r_portfolio - r_benchmark) 
-              - λ1 * |h_t - h_{t-1}|        # 거래 비용 페널티
-              - λ2 * max(0, SCR_target - SCR_t)  # K-ICS 위반 페널티
+    Reward Function (Constrained Optimization):
+        L(h_t, λ) = Capital_Efficiency - Hedge_Cost - λ1 * Turnover_Penalty - λ2 * max(0, 1.5 - KICS_Ratio)
     """
     
     def __init__(self, 
-                 lambda1=0.1,      # 거래 비용 페널티 가중치
-                 lambda2=1000,     # K-ICS 위반 페널티 (강력!)
-                 scr_target=0.35,  # 목표 SCR 비율 (100% K-ICS 비율에 해당)
-                 hedge_cost_rate=0.002):  # 일일 헤지 비용률
+                 lambda1=1.0,      # 헤지 비용 페널티 가중치
+                 lambda2=0.1,      # 거래 비용(회전율) 페널티 가중치
+                 lambda3=1000.0,   # K-ICS 위반 페널티 (강력!)
+                 scr_target=1.0,   # 목표 SCR 비율 (150% K-ICS 비율에 해당)
+                 hedge_cost_rate=0.015 / 252):  # 일일 헤지 비용률 (연 1.5%)
         
         self.engine = RatioKICSEngine()
         self.lambda1 = lambda1
         self.lambda2 = lambda2
+        self.lambda3 = lambda3
         self.scr_target = scr_target
         self.hedge_cost_rate = hedge_cost_rate
         
@@ -111,14 +111,24 @@ class KICSEnvironment:
         self.prev_hedge_ratio = self.hedge_ratio
         
         # 1. Action 적용 (헤지 비율 조정)
-        if action == 0:
-            self.hedge_ratio = max(0.0, self.hedge_ratio - 0.05)
-        elif action == 1:
-            pass  # 유지
-        elif action == 2:
-            self.hedge_ratio = min(1.0, self.hedge_ratio + 0.05)
-        elif action == 3:
-            self.hedge_ratio = min(1.0, self.hedge_ratio + 0.10)
+        if isinstance(action, (float, np.floating)) or (isinstance(action, np.ndarray) and action.size == 1):
+            # 연속형 Action 처리 및 Clipping action changes
+            action_val = float(action)
+            action_change = np.clip(action_val, -0.1, 0.1)  # -10% ~ +10% 변경 제한
+            self.hedge_ratio += action_change
+        else:
+            # 이산형 Action 처리
+            if action == 0:
+                self.hedge_ratio -= 0.05
+            elif action == 1:
+                pass  # 유지
+            elif action == 2:
+                self.hedge_ratio += 0.05
+            elif action == 3:
+                self.hedge_ratio += 0.10
+        
+        # 클리핑 (Clipping)
+        self.hedge_ratio = float(np.clip(self.hedge_ratio, 0.0, 1.0))
         
         # 2. 시장 상태 업데이트
         if new_vix is not None:
@@ -149,32 +159,32 @@ class KICSEnvironment:
     
     def _calculate_reward(self):
         """
-        Reward Function 계산
+        [P1 Redesign] 제약 조건부 최적화 (Constrained Optimization) Reward Function
         
-        R_t = Capital_Efficiency - Transaction_Cost - KICS_Penalty
+        L(x, λ) = f(x) - λ1 * g1(x) - λ2 * g2(x) - λ3 * g3(x)
+        - Objective f(x): Capital Efficiency (SCR 절감)
+        - Constraint g1(x): Hedge Cost
+        - Constraint g2(x): Turnover Penalty
+        - Constraint g3(x): K-ICS >= 150% (Lagrangian Multiplier 적용)
         """
-        # 1. 자본 효율성 (Baseline 대비 SCR 절감)
+        # 1. 자본 효율성 (Objective)
         capital_efficiency = (self.baseline_scr - self.scr_ratio) * 10  # 스케일링
         
         # 2. 헤지 비용
         hedge_cost = self.hedge_ratio * self.hedge_cost_rate
         
-        # 3. 거래 비용 페널티 (포지션 변경 비용)
-        transaction_penalty = self.lambda1 * abs(self.hedge_ratio - self.prev_hedge_ratio)
+        # 3. 회전율 페널티 (Turnover Penalty)
+        turnover_penalty = abs(self.hedge_ratio - self.prev_hedge_ratio)
         
-        # 4. K-ICS 위반 페널티 (핵심!)
-        # SCR이 목표치를 초과하면 큰 페널티
-        # (SCR이 높을수록 요구자본이 많음 = K-ICS 비율 하락)
-        if self.scr_ratio > self.scr_target * 1.2:  # 20% 초과 시 페널티
-            kics_penalty = self.lambda2 * (self.scr_ratio - self.scr_target)
-        else:
-            kics_penalty = 0
+        # 4. 제약 조건부 최적화 (Lagrangian Penalty: K-ICS >= 150% 제약)
+        kics_ratio = self.get_kics_ratio()
+        # K-ICS 비율이 1.5(150%) 미만일 경우 페널티 부여
+        kics_penalty = max(0.0, 1.5 - kics_ratio)
         
-        # 최종 보상
-        reward = capital_efficiency - hedge_cost - transaction_penalty - kics_penalty
+        # 최종 보상 (Lagrangian Multipliers 적용)
+        reward = capital_efficiency - self.lambda1 * hedge_cost - self.lambda2 * turnover_penalty - self.lambda3 * kics_penalty
         
         return reward
-    
     def get_kics_ratio(self):
         """
         현재 K-ICS 비율 추정 (가용자본 / 요구자본)

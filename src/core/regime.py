@@ -13,9 +13,10 @@ class RegimeClassifier:
     States:
     - Normal (0): 낮은 변동성, 평온한 시장
     - Transition (1): 변동성 확대 전조
-    - Panic (2): 높은 변동성, 위기 상황
+    - Safe-haven (2): 안전자산 선호 국면
+    - Panic (3): 극단적 위기 상황
     """
-    def __init__(self, n_components=3, random_state=42):
+    def __init__(self, n_components=4, random_state=42):
         self.model = GaussianHMM(n_components=n_components, 
                                  covariance_type="full", 
                                  n_iter=1000, 
@@ -31,8 +32,9 @@ class RegimeClassifier:
         - VIX_Change: 공포 확산 속도
         - FX_MA_Divergence: 환율 이격도
         - Yield_Spread: [중요] 한국 리스크 대리변수 (CDS Proxy)
+        - Correlation: 주식-환율 상관계수 (안전자산 선호도)
         """
-        features = ['VIX', 'VIX_Change', 'FX_MA_Divergence', 'Yield_Spread']
+        features = ['VIX', 'VIX_Change', 'FX_MA_Divergence', 'Yield_Spread', 'Correlation']
         
         # 결측치는 0으로 채워서 학습
         valid_df = df[features].fillna(0)
@@ -49,15 +51,15 @@ class RegimeClassifier:
             mean_vix = X[hidden_states == i, 0].mean() # VIX is col 0
             means.append((i, mean_vix))
             
-        # VIX 평균이 낮은 순서대로 정렬 (Normal -> Transition -> Panic)
+        # VIX 평균이 낮은 순서대로 정렬 (Normal -> Transition -> Safe-haven -> Panic)
         means.sort(key=lambda x: x[1])
         
         self.state_map = {
             means[0][0]: 'Normal',      
             means[1][0]: 'Transition',  
-            means[2][0]: 'Panic'        
+            means[2][0]: 'Safe-haven',
+            means[3][0]: 'Panic'        
         }
-        
         print(f"[-] 모델 학습 완료. 상태 매핑: {self.state_map}")
         
     def predict(self, row):
@@ -65,7 +67,7 @@ class RegimeClassifier:
         if not self.is_fitted:
             return 0 # Default Normal
             
-        cols = ['VIX', 'VIX_Change', 'FX_MA_Divergence', 'Yield_Spread']
+        cols = ['VIX', 'VIX_Change', 'FX_MA_Divergence', 'Yield_Spread', 'Correlation']
         X = np.array([[ row.get(c, 0) for c in cols ]])
         
         state_idx = self.model.predict(X)[0]

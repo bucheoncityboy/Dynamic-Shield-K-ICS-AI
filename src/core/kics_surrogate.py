@@ -38,6 +38,25 @@ try:
 except ImportError:
     from .kics_real import RatioKICSEngine
 
+def pinball_loss(y_pred, y_true, q=0.90):
+    error = y_true - y_pred
+    return torch.mean(torch.max(q * error, (q - 1) * error))
+
+
+class PinballLoss(nn.Module):
+    """
+    Quantile Regression with Pinball Loss
+    tau=0.90: Predicts 90th percentile of SCR Ratio 
+              (Conservative Upper Bound of SCR = Lower Bound of K-ICS)
+    """
+    def __init__(self, tau=0.90):
+        super(PinballLoss, self).__init__()
+        self.tau = tau
+
+    def forward(self, preds, target):
+        errors = target - preds
+        return torch.mean(torch.max(self.tau * errors, (self.tau - 1.0) * errors))
+
 
 class KICSSurrogate(nn.Module):
     """
@@ -91,7 +110,7 @@ class RobustSurrogate:
             self.model = KICSSurrogate(input_dim=2, hidden_dims=[512, 256, 128, 64, 32], output_dim=1, dropout_rate=0.2)
             self.model.to(self.device)
             self.optimizer = None
-            self.criterion = nn.MSELoss()
+            self.criterion = PinballLoss(tau=0.90)  # [P2] Quantile Regression (보수적 하한 예측용 Pinball Loss)
             self.scaler_x = None
             self.scaler_y = None
         else:
@@ -154,9 +173,9 @@ class RobustSurrogate:
                     # Forward pass
                     predictions = self.model(batch_X)
                     
-                    # MSE Loss 사용 (안정적인 학습)
-                    loss = self.criterion(predictions, batch_y)
-                    
+                    # Pinball Loss 사용 (Quantile Regression)
+                    loss = pinball_loss(predictions, batch_y)
+
                     # Backward pass
                     loss.backward()
                     # Gradient clipping (안정적인 학습)
@@ -173,8 +192,8 @@ class RobustSurrogate:
                     val_X = X_tensor[-val_size:]  # 마지막 20%를 validation으로
                     val_y = y_tensor[-val_size:]
                     val_predictions = self.model(val_X)
-                    val_loss = self.criterion(val_predictions, val_y).item()
-                
+                    val_loss = pinball_loss(val_predictions, val_y).item()
+
                 # Learning rate scheduling
                 scheduler.step(val_loss)
                 
@@ -511,7 +530,7 @@ def train_surrogate_model():
     print("  - 최대 에포크: 2000")
     print("  - 초기 학습률: 0.0005 (과적합 방지를 위해 감소)")
     print("  - 배치 크기: 128 (더 작은 배치로 정밀 학습)")
-    print("  - Loss: MSE Loss (안정적인 학습)")
+    print("  - Loss: Pinball Loss (tau=0.90, 보수적 하한 예측)")
     print("  - Dropout: 0.2 (과적합 방지 강화)")
     print("  - Weight Decay: 5e-4 (정규화 강화)")
     print("  - Learning Rate Scheduling: ReduceLROnPlateau (factor=0.5, patience=50)")

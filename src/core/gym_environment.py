@@ -46,11 +46,12 @@ class KICSGymEnv(gym.Env):
     metadata = {'render_modes': ['human']}
     
     def __init__(self, 
-                 lambda1=None,           # 거래 비용 페널티 가중치
-                 lambda2=None,          # K-ICS 위반 페널티 (강력!)
-                 scr_target=None,       # 목표 SCR 비율
-                 hedge_cost_rate=None, # 일일 헤지 비용률
-                 max_steps=None):        # 에피소드 최대 길이
+                 lambda1=1.0,
+                 lambda2=0.1,
+                 lambda3=1000.0,
+                 scr_target=0.35,
+                 hedge_cost_rate=0.015 / 252,
+                 max_steps=500):
         
         super().__init__()
         
@@ -60,19 +61,20 @@ class KICSGymEnv(gym.Env):
             loader = ConfigLoader()
             gym_config = loader.get_gym_env_config()
             
-            # 설정 파일에서 기본값 로드 (인자로 전달된 값이 우선)
-            self.lambda1 = lambda1 or gym_config.get('lambda1', 0.1)
-            self.lambda2 = lambda2 or gym_config.get('lambda2', 1000)
-            self.scr_target = scr_target or gym_config.get('scr_target', 0.35)
-            self.hedge_cost_rate = hedge_cost_rate or gym_config.get('hedge_cost_rate', 0.002)
-            self.max_steps = max_steps or gym_config.get('max_steps', 500)
+            self.lambda1 = gym_config.get('lambda1', lambda1)
+            self.lambda2 = gym_config.get('lambda2', lambda2)
+            self.lambda3 = gym_config.get('lambda3', lambda3)
+            self.scr_target = gym_config.get('scr_target', scr_target)
+            self.hedge_cost_rate = gym_config.get('hedge_cost_rate', hedge_cost_rate)
+            self.max_steps = gym_config.get('max_steps', max_steps)
         except (ImportError, FileNotFoundError, KeyError):
             # 폴백: 기본값 사용
-            self.lambda1 = lambda1 or 0.1
-            self.lambda2 = lambda2 or 1000
-            self.scr_target = scr_target or 0.35
-            self.hedge_cost_rate = hedge_cost_rate or 0.002
-            self.max_steps = max_steps or 500
+            self.lambda1 = lambda1
+            self.lambda2 = lambda2
+            self.lambda3 = lambda3
+            self.scr_target = scr_target
+            self.hedge_cost_rate = hedge_cost_rate
+            self.max_steps = max_steps
         
         self.engine = RatioKICSEngine()
         
@@ -401,30 +403,17 @@ class KICSGymEnv(gym.Env):
         
         Constraint: K-ICS < 100%이면 -1000점 강력 페널티
         """
-        # 1. 자본 효율성 (비율이 높을수록 안전 = 보상)
-        # scr_ratio가 baseline보다 높으면 양수 보상
         capital_efficiency = (self.scr_ratio - self.baseline_scr) * 100
-        
-        # 2. 헤지 비용
         hedge_cost = self.hedge_ratio * self.hedge_cost_rate
+        transaction_penalty = abs(self.hedge_ratio - self.prev_hedge_ratio)
         
-        # 3. 거래 비용 페널티 (포지션 변경 비용)
-        transaction_penalty = self.lambda1 * abs(self.hedge_ratio - self.prev_hedge_ratio)
-        
-        # 4. K-ICS 위반 페널티 (핵심!)
         kics_ratio = self._get_kics_ratio()
-        if kics_ratio < 100:
-            # K-ICS 100% 미만: 강력 페널티
-            kics_penalty = self.lambda2
-        elif kics_ratio < 120:
-            # K-ICS 100-120%: 경고 페널티
-            kics_penalty = (120 - kics_ratio) * 10
+        if kics_ratio < 150:
+            kics_penalty = (150 - kics_ratio) * 10
         else:
             kics_penalty = 0
-        
-        # 최종 보상
-        reward = capital_efficiency - hedge_cost - transaction_penalty - kics_penalty
-        
+            
+        reward = capital_efficiency - self.lambda1 * hedge_cost - self.lambda2 * transaction_penalty - self.lambda3 * kics_penalty
         return reward
     
     def render(self, mode='human'):

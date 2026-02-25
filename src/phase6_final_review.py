@@ -32,8 +32,8 @@ def run_logic_consistency_check():
         'surrogate_error': False
     }
     
-    # 1. Risk Paradox 증명
-    print("\n[Check 1] Risk Paradox Proof")
+    # 1. 분산 효과 최적화 증명
+    print("\n[Check 1] 분산 효과 최적화 Proof")
     print("-" * 50)
     engine = RatioKICSEngine()
     
@@ -42,7 +42,7 @@ def run_logic_consistency_check():
     hedge_100 = engine.calculate_scr_ratio_batch(np.array([1.0]), np.array([-0.4]))[0]
     
     # 새 공식: 비율이 높을수록 안전
-    # Risk Paradox: 80% 헤지가 100% 헤지보다 비율이 높으면 성공
+    # 분산 효과 최적화: 80% 헤지가 100% 헤지보다 비율이 높으면 성공
     if hedge_80 > hedge_100:
         print(f"  SCR Ratio at 80% Hedge: {hedge_80:.4f}")
         print(f"  SCR Ratio at 100% Hedge: {hedge_100:.4f}")
@@ -51,7 +51,7 @@ def run_logic_consistency_check():
     else:
         print(f"  SCR Ratio at 80% Hedge: {hedge_80:.4f}")
         print(f"  SCR Ratio at 100% Hedge: {hedge_100:.4f}")
-        print("  [FAIL] Risk Paradox not proven")
+        print("  [FAIL] 분산 효과 최적화 not proven")
     
     # 2. Safety Layer 작동
     print("\n[Check 2] Safety Layer Operation")

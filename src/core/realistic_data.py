@@ -331,7 +331,7 @@ def generate_market_scenario(n_days=500, scenario='normal', use_real_data=True, 
                                 correlations.append(0.0)  # 초기값
                         
                         _REAL_DATA_CACHE['Correlation'] = correlations
-                        print(f"  ✓ 실제 Correlation 계산 완료 (롤링 {window}일 윈도우)")
+                        print(f"  실제 Correlation 계산 완료 (롤링 {window}일 윈도우)")
                         print(f"    - Correlation 범위: [{np.min(correlations):.3f}, {np.max(correlations):.3f}]")
                     else:
                         print("  [경고] KOSPI 또는 FX 컬럼 없음. VIX 기반 추정 사용.")
