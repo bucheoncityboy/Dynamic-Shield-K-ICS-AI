@@ -43,7 +43,10 @@ class KICSEnvironment:
                  lambda1=0.1,      # 거래 비용 페널티 가중치
                  lambda2=1000,     # K-ICS 위반 페널티 (강력!)
                  scr_target=0.35,  # 목표 SCR 비율 (100% K-ICS 비율에 해당)
-                 hedge_cost_rate=0.002):  # 일일 헤지 비용률
+                 hedge_cost_rate=None):  # 일일 헤지 비용률 (None이면 연 1.5% 일할)
+        # 연 1.5% 스왑포인트 비용 (보험연구원 2018 기준) → 일일
+        if hedge_cost_rate is None:
+            hedge_cost_rate = 0.015 / 252
         
         self.engine = RatioKICSEngine()
         self.lambda1 = lambda1

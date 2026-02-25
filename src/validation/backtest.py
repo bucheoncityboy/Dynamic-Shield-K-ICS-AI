@@ -184,8 +184,8 @@ class BacktestEngine:
                 np.array([corr])
             )[0]
             
-            # 헤지 비용 (간단화: 연 0.2% 가정)
-            hedge_cost = new_ratio * 0.002 
+            # 헤지 비용: 연 1.5% 스왑포인트 비용 일할 (보험연구원 2018 기준)
+            hedge_cost = new_ratio * (0.015 / 252) 
             
             results.append({
                 'Day': i,
@@ -240,8 +240,8 @@ class PerformanceAnalyzer:
         open_position_ratio = 1 - hedge_ratios
         fx_pnl = fx_returns * open_position_ratio * fx_asset_ratio
         
-        # 3. 헤지 비용 (연 2% 가정, 일할 계산)
-        annual_hedge_cost_rate = 0.02
+        # 3. 헤지 비용 (연 1.5% 스왑포인트 가정, 일할 계산)
+        annual_hedge_cost_rate = 0.015
         daily_hedge_cost = hedge_ratios * (annual_hedge_cost_rate / 252) * fx_asset_ratio
         
         # 4. 일일 총 수익률 (FX P&L - 헤지 비용)

@@ -64,14 +64,16 @@ class KICSGymEnv(gym.Env):
             self.lambda1 = lambda1 or gym_config.get('lambda1', 0.1)
             self.lambda2 = lambda2 or gym_config.get('lambda2', 1000)
             self.scr_target = scr_target or gym_config.get('scr_target', 0.35)
-            self.hedge_cost_rate = hedge_cost_rate or gym_config.get('hedge_cost_rate', 0.002)
+            # 연 1.5% 스왑포인트 비용 (보험연구원 2018 기준) → 일할
+            _annual_hedge = gym_config.get('hedge_cost_annual', 0.015)
+            self.hedge_cost_rate = hedge_cost_rate or (float(_annual_hedge) / 252)
             self.max_steps = max_steps or gym_config.get('max_steps', 500)
         except (ImportError, FileNotFoundError, KeyError):
-            # 폴백: 기본값 사용
+            # 폴백: 연 1.5% (실무 수준), 일일 = 0.015/252
             self.lambda1 = lambda1 or 0.1
             self.lambda2 = lambda2 or 1000
             self.scr_target = scr_target or 0.35
-            self.hedge_cost_rate = hedge_cost_rate or 0.002
+            self.hedge_cost_rate = hedge_cost_rate or (0.015 / 252)
             self.max_steps = max_steps or 500
         
         self.engine = RatioKICSEngine()
@@ -411,14 +413,14 @@ class KICSGymEnv(gym.Env):
         # 3. 거래 비용 페널티 (포지션 변경 비용)
         transaction_penalty = self.lambda1 * abs(self.hedge_ratio - self.prev_hedge_ratio)
         
-        # 4. K-ICS 위반 페널티 (핵심!)
+        # 4. K-ICS 위반 페널티 (3단계 Safety Layer 반영)
         kics_ratio = self._get_kics_ratio()
         if kics_ratio < 100:
-            # K-ICS 100% 미만: 강력 페널티
+            # Level 2: 100% 미만 → 강력 페널티
             kics_penalty = self.lambda2
-        elif kics_ratio < 120:
-            # K-ICS 100-120%: 경고 페널티
-            kics_penalty = (120 - kics_ratio) * 10
+        elif kics_ratio < 130:
+            # Level 1: 100~130% → 적기시정조치 예방용 경고 페널티
+            kics_penalty = (130 - kics_ratio) * 5
         else:
             kics_penalty = 0
         

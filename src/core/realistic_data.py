@@ -25,8 +25,8 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _DATA_DIR = os.path.join(_SCRIPT_DIR, '..', '..', 'DATA', 'data')
 REAL_DATA_PATH = os.path.join(_DATA_DIR, 'Dynamic_Shield_Data_v4.csv')
 
-# Train/Test 분리 비율 (시간 기준)
-TRAIN_RATIO = 0.75  # 75% Train, 25% Test (보수적 접근, 금융 데이터 특성 고려)
+# Train/Test 분리 비율 (시간 기준) — 논문 5,292일 기준 70% 학습 / 30% 테스트
+TRAIN_RATIO = 0.70  # 70% Train, 30% Test (학습/평가 데이터 누수 방지)
 TRAIN_SEED_RANGE = (1, 1000)      # 학습용 seed 범위
 TEST_SEED_RANGE = (10001, 20000)  # 테스트용 seed 범위 (명확히 분리)
 

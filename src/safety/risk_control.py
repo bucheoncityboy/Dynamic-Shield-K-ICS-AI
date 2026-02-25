@@ -22,9 +22,10 @@ class RiskConfig:
     vix_transition_threshold: float = 25.0  # 전환 구간
     vix_normal_threshold: float = 20.0      # 정상 구간
     
-    # K-ICS 임계값
-    kics_critical_threshold: float = 100.0  # 즉시 100% 헤지
-    kics_danger_threshold: float = 120.0    # 경고 구간
+    # K-ICS 임계값 (3단계 Safety Layer)
+    kics_critical_threshold: float = 100.0  # Level 2: 즉시 100% 헤지
+    kics_level1_threshold: float = 130.0    # Level 1: 적기시정조치 예방, 점진적 상향
+    kics_danger_threshold: float = 130.0    # 경고 구간 (Level 1과 동일)
     kics_safe_threshold: float = 150.0      # 안전 구간
     
     # 헤지 비율 제한
@@ -113,25 +114,26 @@ class RiskController:
         hedge_change = proposed_action * self.config.max_hedge_change
         new_hedge = current_hedge + hedge_change
         
-        # === Safety Layer 1: K-ICS 위반 방지 (최우선) ===
+        # === Level 2: K-ICS < 100% → 즉시 100% 헤지 (규제 위반 방지) ===
         if kics_ratio < self.config.kics_critical_threshold:
             self.state.is_derisking = True
             self.state.derisking_target = self.config.emergency_hedge_target
-            self.state.last_action_reason = f"CRITICAL: K-ICS {kics_ratio:.1f}% < 100%, FORCE 100% HEDGE"
+            self.state.last_action_reason = f"Level2: K-ICS {kics_ratio:.1f}% < 100%, FORCE 100% HEDGE"
             return 1.0, self.state.last_action_reason
         
-        if kics_ratio < self.config.kics_danger_threshold:
+        # === Level 1: K-ICS < 130% → 점진적 De-risking (적기시정조치 예방) ===
+        if kics_ratio < self.config.kics_level1_threshold:
             self.state.consecutive_danger_days += 1
             # 위험 구간: 단계적 헤지 증가
             target = min(current_hedge + self.config.gradual_derisking_step, 1.0)
             self.state.is_derisking = True
             self.state.derisking_target = target
-            self.state.last_action_reason = f"DANGER: K-ICS {kics_ratio:.1f}%, Increasing Hedge"
+            self.state.last_action_reason = f"Level1: K-ICS {kics_ratio:.1f}% < 130%, Gradual De-risking"
             return target, self.state.last_action_reason
         else:
             self.state.consecutive_danger_days = 0
         
-        # === Safety Layer 2: Gradual De-risking 진행 중 ===
+        # === Level 1 진행: Gradual De-risking ===
         if self.state.is_derisking:
             if current_hedge >= self.state.derisking_target:
                 self.state.is_derisking = False
@@ -142,16 +144,10 @@ class RiskController:
                 self.state.last_action_reason = "Gradual De-risking in Progress"
                 return self._clamp_hedge(new_hedge), self.state.last_action_reason
         
-        # === Safety Layer 3: VIX 기반 Regime 대응 ===
+        # === Safety Layer 2 (PDF 5.1): VIX > 40 또는 유동성 위기 → 즉시 100% 헤지 ===
         if vix >= self.config.vix_panic_threshold:
-            # 패닉: 즉시 헤지 증가
-            if current_hedge < 0.9:
-                target = min(current_hedge + 0.15, 1.0)
-                self.state.last_action_reason = f"PANIC: VIX={vix:.1f}, Rapid Hedge Increase"
-                return target, self.state.last_action_reason
-            else:
-                self.state.last_action_reason = f"PANIC: VIX={vix:.1f}, Hedge Already High"
-                return current_hedge, self.state.last_action_reason
+            self.state.last_action_reason = f"Level2: VIX={vix:.1f}>=40, FORCE 100% HEDGE"
+            return 1.0, self.state.last_action_reason
         
         elif vix >= self.config.vix_transition_threshold:
             # 전환: AI 제안을 상향 바이어스
@@ -177,11 +173,11 @@ class RiskController:
         """
         penalty = 0.0
         
-        # K-ICS 페널티
+        # K-ICS 페널티 (Level 2: <100%, Level 1: <130%)
         if kics_ratio < self.config.kics_critical_threshold:
-            penalty -= 1000.0  # 치명적
-        elif kics_ratio < self.config.kics_danger_threshold:
-            penalty -= (self.config.kics_danger_threshold - kics_ratio) * 10
+            penalty -= 1000.0  # Level 2 치명적
+        elif kics_ratio < self.config.kics_level1_threshold:
+            penalty -= (self.config.kics_level1_threshold - kics_ratio) * 5
         
         # VIX 미대응 페널티는 apply_safety_rules에서 처리
         
@@ -215,7 +211,7 @@ if __name__ == "__main__":
         (0.0, 0.5, 15, 180, "NORMAL: 유지"),
         (0.0, 0.5, 45, 180, "PANIC: 헤지 증가"),
         (0.0, 0.5, 15, 95, "CRITICAL: 100% 강제"),
-        (0.0, 0.5, 15, 115, "DANGER: 단계적 증가"),
+        (0.0, 0.5, 15, 115, "Level1: 단계적 증가"),
         (-0.5, 0.8, 15, 200, "NORMAL: AI 제안 수용 (감소)"),
     ]
     
