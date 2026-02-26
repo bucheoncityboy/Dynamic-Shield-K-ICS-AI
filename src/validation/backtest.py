@@ -97,6 +97,7 @@ class BacktestEngine:
             # 2. 탐색 경로 후보
             search_paths = [
                 model_filename,                 # 현재 폴더 (예: ppo_kics)
+                f"src/validation/{model_filename}", # 명시적 경로
                 f"models/{model_filename}",     # models 하위 폴더
                 f"../models/{model_filename}"   # 상위 models 폴더
             ]
@@ -236,8 +237,11 @@ class PerformanceAnalyzer:
         fx_returns = results_df['FX'].pct_change().fillna(0)
         hedge_ratios = results_df['Hedge_Ratio']
         
-        # 헤지되지 않은 포지션만 환율 변동에 노출
-        open_position_ratio = 1 - hedge_ratios
+        # [데이터 누수(Look-ahead Bias) 방지 적용]
+        # 당일(t)의 환율 수익률은 전일(t-1) 종가 시점에 설정된 헤지 비율에 노출됨
+        # .shift(1)을 사용하여 미래 데이터 참조 원천 차단 (과적합, 편향 배제 3대 원칙)
+        shifted_hedge_ratios = hedge_ratios.shift(1).fillna(0.5)  # 초기 0.5 가정
+        open_position_ratio = 1 - shifted_hedge_ratios
         fx_pnl = fx_returns * open_position_ratio * fx_asset_ratio
         
         # 3. 헤지 비용 (연 1.5% 스왑포인트 가정, 일할 계산)
@@ -386,7 +390,7 @@ def run_full_analysis():
     plt.tight_layout()
     plt.suptitle('Phase 5.4: Strategy Comparison (AI vs Traditional)', y=1.02, fontsize=14, fontweight='bold')
     plt.savefig('backtest_result_ai.png', dpi=150)
-    plt.show()
+    plt.close()
     
     print("\n[Saved] backtest_result_ai.png")
     
