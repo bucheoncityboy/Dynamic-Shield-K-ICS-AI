@@ -85,7 +85,6 @@ K-ICS 엔진(Ground Truth) ── AI Surrogate(MLP) ── HMM Regime Detector
 | **Regime Detector** | HMM이 시장을 Normal/Transition/Panic 3개 국면으로 분류 (5,292일 학습) |
 | **PPO Agent** | K-ICS 비율과 헤지 비용을 고려해 최적 포지션 유지. Avg K-ICS 999%, Safety Layer 발동 3,456회 |
 | **Safety Layer** | AI 오작동 방지 킬 스위치. VIX>40 즉시 디리스킹, K-ICS<100% 강제 100% 헤지 |
-| **Safety Layer** | AI 오작동 방지 킬 스위치. VIX>40 즉시 디리스킹, K-ICS<100% 강제 100% 헤지 |
 
 ### Safety Layer 스트레스 테스트
 
