@@ -4,11 +4,11 @@
 
 - [**K-ICS 규제 환경 하 보험사의 동적 환위험 헤지 의사결정 시스템 (연구 보고서 PDF)**](./K-ICS%20규제%20환경%20하%20보험사의%20동적%20환위험%20헤지%20의사결정%20시스템.pdf)
 
-> 보험사의 100% 환헤지 관행이 오히려 요구자본을 키운다는 **Risk Paradox**를 수학적으로 증명하고, HMM 국면 인식과 PPO 강화학습으로 최적 헤지 비율을 실시간 산출하는 시스템. 실데이터 5,292일로 검증했다. (한화 손해보험 협업 프로젝트)
+> 보험사의 100% 환헤지 관행이 오히려 요구자본을 키우는 **리스크의 역설(Risk Paradox)**을 수학적으로 증명하고, HMM 국면 인식과 PPO 강화학습으로 최적 헤지 비율을 실시간 산출하는 시스템이다. 실데이터 5,292일로 검증했다(한화 손해보험 협업 프로젝트).
 
 ## ⭐ 핵심 발견: 리스크의 역설 (Risk Paradox)
 
-K-ICS 요구자본 산식에서 주식과 환율이 음의 상관(ρ<0)을 보일 때, 일정 수준의 환노출은 분산 효과로 전체 리스크를 낮춘다. 100% 헤지는 환위험만 지우고 자본 비용은 오히려 늘린다.
+K-ICS 요구자본 산식에서 주식과 환율이 음의 상관(ρ<0)을 보이면, 일정 수준의 환노출은 분산 효과 덕에 전체 리스크를 낮춘다. 100% 헤지는 환위험만 지우고 자본 비용만 오히려 늘린다.
 
 ```
 SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
@@ -22,7 +22,7 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 | 0.0 | 25% | 0.0833 | 0.1000 | 0.50% |
 | 0.2 | 45% | 0.0758 | 0.0909 | 0.00% |
 
-상관계수가 음으로 깊을수록 절감 폭이 커진다. 최대 10.38%.
+상관계수가 음으로 깊을수록 절감 폭이 커져 최대 10.38%까지 줄어든다.
 
 ## 실데이터 검증 (5,292일)
 
@@ -41,7 +41,7 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 | Rule-based | +0.11% | -4.23 | -0.93% | 0.65 | 0.1022 | -0.11억 |
 | **Dynamic Shield** | -0.29% | **-4.23** | -1.81% | **2.26** | **0.1040** | **+0.08억** |
 
-Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고 RCR과 Avg SCR도 가장 좋다.
+Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고, RCR과 Avg SCR도 가장 좋았다.
 
 ![백테스트 결과](backtest_result_ai.png)
 
@@ -55,7 +55,7 @@ Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고 RCR과 Avg SCR도 �
 | 80% Fixed | 1,159.5% | 1,212.9% |
 | **Dynamic Shield** | **1,437.0%** | **1,547.1%** |
 
-위기 구간에서도 K-ICS 비율을 100% 이상으로 유지했다.
+위기 구간에서도 K-ICS 비율을 100% 이상 유지했다.
 
 ### "왜 100% 헤지가 아닌가", SHAP 의사결정 분석
 
@@ -69,34 +69,34 @@ Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고 RCR과 Avg SCR도 �
 K-ICS 엔진(Ground Truth) ── AI Surrogate(MLP) ── HMM Regime Detector
                     └──────────────┬──────────────┘
                                    ▼
-              PPO RL Agent (stable-baselines3)
-              State   : [Hedge_Ratio, VIX, Correlation, SCR_Ratio]
-              Action  : 연속값 [-1, 1] → 헤지 조정
-              Reward  : Capital Efficiency - Cost - K-ICS Penalty
+              PPO 강화학습 에이전트 (stable-baselines3)
+              상태    : [헤지비율, VIX, 상관계수, SCR 비율]
+              행동    : 연속값 [-1, 1] → 헤지 조정
+              보상    : 자본효율 - 비용 - K-ICS 패널티
                                    ▼
                             Safety Layer
-              · VIX > 40        → Emergency De-risking
-              · K-ICS < 100%    → 100% 헤지 강제 전환
-              · Max Step ±10%   → 급발진 방지
+              · VIX>40       → 긴급 디리스킹
+              · K-ICS<100%   → 100% 헤지 강제 전환
+              · 최대 스텝 ±10% → 급변동 방지
 ```
 
 ### 구성 요소
 
 | 모듈 | 역할 |
 |---|---|
-| **K-ICS 엔진** | 요구자본·비율 산출의 Ground Truth. 규제 산식을 그대로 구현 |
-| **AI Surrogate** | DNN 대리 모델로 K-ICS 산출을 근사, 실시간 추론 가능. MAPE 0.0518%, Surrogate vs Real 오차 0.03% |
-| **Regime Detector** | HMM이 시장을 Normal/Transition/Panic 3개 국면으로 분류 (5,292일 학습) |
-| **PPO Agent** | K-ICS 비율과 헤지 비용을 고려해 최적 포지션 유지. Avg K-ICS 999%, Safety Layer 발동 3,456회 |
-| **Safety Layer** | AI 오작동 방지 킬 스위치. VIX>40 즉시 디리스킹, K-ICS<100% 강제 100% 헤지 |
+| **K-ICS 엔진** | 요구자본·비율을 산출하는 기준 엔진. 규제 산식을 그대로 구현했다 |
+| **AI Surrogate** | DNN 대리 모델로 K-ICS 산출을 근사해 실시간 추론을 가능하게 한다. MAPE 0.0518%, 원본 대비 오차 0.03% |
+| **Regime Detector** | HMM이 시장을 정상/전환/패닉 3개 국면으로 분류한다(5,292일 학습) |
+| **PPO Agent** | K-ICS 비율과 헤지 비용을 고려해 최적 포지션을 유지한다. 평균 K-ICS 999%, 안전장치 발동 3,456회 |
+| **Safety Layer** | AI 오작동을 막는 킬 스위치. VIX>40이면 즉시 디리스킹, K-ICS<100%면 100% 헤지를 강제한다 |
 
 ### Safety Layer 스트레스 테스트
 
 | 테스트 | 결과 |
 |---|---|
-| VIX > 40 주입 | Emergency De-risking TRIGGERED |
-| 점진적 증가 검증 | Max step ≤ 0.15 PASS |
-| K-ICS < 100% 페널티 | 100% 헤지 전환 PASS |
+| VIX>40 주입 | 긴급 디리스킹 작동 |
+| 점진적 상승 검증 | Max step ≤ 0.15 PASS |
+| K-ICS<100% 페널티 | 100% 헤지 전환 통과 |
 
 ## 저장소 구조
 
