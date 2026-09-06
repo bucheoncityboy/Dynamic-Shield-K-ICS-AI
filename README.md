@@ -65,20 +65,10 @@ Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고, RCR과 Avg SCR도 
 
 ### 아키텍처
 
-```
-K-ICS 엔진(Ground Truth) ── AI Surrogate(MLP) ── HMM Regime Detector
-                    └──────────────┬──────────────┘
-                                   ▼
-              PPO 강화학습 에이전트 (stable-baselines3)
-              상태    : [헤지비율, VIX, 상관계수, SCR 비율]
-              행동    : 연속값 [-1, 1] → 헤지 조정
-              보상    : 자본효율 - 비용 - K-ICS 패널티
-                                   ▼
-                            Safety Layer
-              · VIX>40       → 긴급 디리스킹
-              · K-ICS<100%   → 100% 헤지 강제 전환
-              · 최대 스텝 ±10% → 급변동 방지
-```
+<p align="center">
+  <img src="ds_architecture.png" alt="Dynamic Shield Architecture" width="860"/>
+</p>
+
 
 ### 구성 요소
 
