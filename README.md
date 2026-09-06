@@ -18,17 +18,17 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 | 0.0 | 25% | 0.0833 | 0.1000 | 0.50% |
 | 0.2 | 45% | 0.0758 | 0.0909 | 0.00% |
 
-상관계수가 낮을수록(음) 자본 절감 효과가 커진다. 최대 **10.38%**의 자본 비용 절감.
+상관계수가 음으로 깊을수록 절감 폭이 커진다. 최대 10.38%.
 
 ## 실데이터 검증 (5,292일)
 
-### Risk Paradox 증명 — 5/5 시나리오
+### Risk Paradox 증명, 5/5 시나리오
 
 ![Risk Paradox 증명](risk_paradox_proof.png)
 
-### 백테스트 성과 비교 — Dynamic Shield가 유일한 순이익
+### 백테스트 성과 비교
 
-데이터 누수(look-ahead bias)를 원천 차단한 train/test 분리(3,704일/1,588일) 검증에서:
+데이터 누수(look-ahead bias)를 차단한 train/test 분리(3,704일/1,588일) 검증에서:
 
 | 전략 | CAGR | Sharpe | MDD | RCR | Avg SCR | Net Benefit |
 |---|---|---|---|---|---|---|
@@ -36,6 +36,8 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 | 80% Fixed | -0.23% | -9.68 | -0.70% | 0.25 | 0.1012 | -0.36억 |
 | Rule-based | +0.11% | -4.23 | -0.93% | 0.65 | 0.1022 | -0.11억 |
 | **Dynamic Shield** | -0.29% | **-4.23** | -1.81% | **2.26** | **0.1040** | **+0.08억** |
+
+Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고 RCR과 Avg SCR도 가장 좋다.
 
 ![백테스트 결과](backtest_result_ai.png)
 
@@ -51,7 +53,7 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 
 위기 구간에서도 K-ICS 비율을 100% 이상으로 유지했다.
 
-### "왜 100% 헤지가 아닌가" — SHAP 의사결정 분석
+### "왜 100% 헤지가 아닌가", SHAP 의사결정 분석
 
 ![SHAP 분석](shap_why_not_analysis.png)
 
