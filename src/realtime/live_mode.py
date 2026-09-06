@@ -293,7 +293,7 @@ class LiveTradingLoop:
             verbose: 상세 출력
         """
         print("=" * 70)
-        print("Dynamic Shield v3.0 - 실시간 운영 모드")
+        print("K-ICS 동적 환헤지 v3.0 - 실시간 운영 모드")
         print("=" * 70)
         print(f"  간격: {interval_sec}초")
         print(f"  데이터 소스: {data_source}")
@@ -397,7 +397,7 @@ def run_live_mode(interval: float = 5.0, max_steps: int = None):
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description='Dynamic Shield 실시간 모드')
+    parser = argparse.ArgumentParser(description='K-ICS 동적 환헤지 실시간 모드')
     parser.add_argument('--interval', '-i', type=float, default=5.0, help='스텝 간격 (초)')
     parser.add_argument('--steps', '-n', type=int, default=None, help='최대 스텝 수')
     

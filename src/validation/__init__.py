@@ -1,5 +1,5 @@
 """
-Dynamic Shield v3.0 - Validation Package
+K-ICS 동적 환헤지 v3.0 - Validation Package
 =========================================
 Capital Optimization, not Prediction (환율 예측이 아닌 자본 최적화)
 

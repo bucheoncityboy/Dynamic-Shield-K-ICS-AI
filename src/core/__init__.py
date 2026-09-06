@@ -1,5 +1,5 @@
 """
-Dynamic Shield v3.0 - Source Package
+K-ICS 동적 환헤지 v3.0 - Source Package
 =====================================
 Capital Optimization, not Prediction (환율 예측이 아닌 자본 최적화)
 

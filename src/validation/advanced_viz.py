@@ -89,7 +89,7 @@ def plot_efficient_frontier():
     """
     Plot 2: Efficient Frontier - 효율적 투자선
     X축: Total Risk (SCR), Y축: Total Hedge Cost
-    Dynamic Shield가 Sweet Spot (Low Risk, Low Cost)에 위치해야 함
+    K-ICS 동적 환헤지가 Sweet Spot (Low Risk, Low Cost)에 위치해야 함
     """
     print("\n[Plot 2] Efficient Frontier (Risk vs Cost)")
     print("-" * 50)
@@ -103,7 +103,7 @@ def plot_efficient_frontier():
         '100% Hedge': {'risks': [], 'costs': []},
         '80% Fixed': {'risks': [], 'costs': []},
         'Rule-based': {'risks': [], 'costs': []},
-        'Dynamic Shield': {'risks': [], 'costs': []}
+        'K-ICS 동적 환헤지': {'risks': [], 'costs': []}
     }
     
     for scenario in scenarios:
@@ -127,8 +127,8 @@ def plot_efficient_frontier():
     # 시각화
     plt.figure(figsize=(10, 8))
     
-    colors = {'100% Hedge': 'gray', '80% Fixed': 'blue', 'Rule-based': 'orange', 'Dynamic Shield': 'green'}
-    markers = {'100% Hedge': 's', '80% Fixed': '^', 'Rule-based': 'D', 'Dynamic Shield': 'o'}
+    colors = {'100% Hedge': 'gray', '80% Fixed': 'blue', 'Rule-based': 'orange', 'K-ICS 동적 환헤지': 'green'}
+    markers = {'100% Hedge': 's', '80% Fixed': '^', 'Rule-based': 'D', 'K-ICS 동적 환헤지': 'o'}
     
     for strategy, vals in avg_data.items():
         plt.scatter(vals['risk'] * 100, vals['cost'] * 100, 
@@ -145,8 +145,8 @@ def plot_efficient_frontier():
     plt.legend(loc='upper right', fontsize=10)
     plt.grid(True, alpha=0.3)
     
-    # 화살표로 Dynamic Shield 강조
-    ds = avg_data['Dynamic Shield']
+    # 화살표로 K-ICS 동적 환헤지 강조
+    ds = avg_data['K-ICS 동적 환헤지']
     plt.annotate('SWEET SPOT\n(Low Risk, Low Cost)',
                  xy=(ds['risk'] * 100, ds['cost'] * 100),
                  xytext=(ds['risk'] * 100 - 2, ds['cost'] * 100 + 0.1),
@@ -164,12 +164,12 @@ def plot_efficient_frontier():
     for strategy, vals in avg_data.items():
         print(f"  {strategy:15s}: Risk={vals['risk']*100:.2f}%, Cost={vals['cost']*100:.2f}%")
     
-    # Dynamic Shield가 Sweet Spot에 있는지 확인
-    ds = avg_data['Dynamic Shield']
+    # K-ICS 동적 환헤지가 Sweet Spot에 있는지 확인
+    ds = avg_data['K-ICS 동적 환헤지']
     benchmark = avg_data['100% Hedge']
     
     if ds['risk'] < benchmark['risk'] and ds['cost'] < benchmark['cost']:
-        print("\n[SUCCESS] Dynamic Shield is in the SWEET SPOT!")
+        print("\n[SUCCESS] K-ICS 동적 환헤지 is in the SWEET SPOT!")
         print("  → Lower risk AND lower cost than 100% Hedge!")
     
     return avg_data

@@ -3,7 +3,7 @@ Phase 5.2: Solvency Analysis (자본 적정성 시각화)
 =================================================
 2020년 3월 코로나 팬데믹 시나리오 시뮬레이션
 - Line A (100% Hedge): K-ICS 비율 급락
-- Line B (Dynamic Shield): K-ICS 비율 안정권 유지
+- Line B (K-ICS 동적 환헤지): K-ICS 비율 안정권 유지
 """
 
 import numpy as np
@@ -160,13 +160,13 @@ def run_solvency_analysis():
     print(f"  Min K-ICS: {min(kics_80):.1f}%")
     print(f"  Final K-ICS: {kics_80[-1]:.1f}%")
     
-    print(f"\n[Dynamic Shield]")
+    print(f"\n[K-ICS 동적 환헤지]")
     print(f"  Min K-ICS: {min(kics_dynamic):.1f}%")
     print(f"  Final K-ICS: {kics_dynamic[-1]:.1f}%")
     
     # 위기 방어 성공 여부
     if min(kics_dynamic) > 100 and min(kics_dynamic) > min(kics_100):
-        print("\n[SUCCESS] Dynamic Shield maintained K-ICS > 100% during crisis!")
+        print("\n[SUCCESS] K-ICS 동적 환헤지 maintained K-ICS > 100% during crisis!")
     
     # 시각화 (The Money Shot!)
     fig, axes = plt.subplots(3, 1, figsize=(14, 12))
@@ -182,7 +182,7 @@ def run_solvency_analysis():
     # Plot 2: K-ICS Ratio (핵심 그래프!)
     axes[1].plot(kics_100, label='100% Hedge (Benchmark)', color='gray', lw=2)
     axes[1].plot(kics_80, label='80% Fixed', color='blue', lw=2, alpha=0.7)
-    axes[1].plot(kics_dynamic, label='Dynamic Shield', color='green', lw=2)
+    axes[1].plot(kics_dynamic, label='K-ICS 동적 환헤지', color='green', lw=2)
     axes[1].axhline(100, linestyle='--', color='red', lw=2, label='K-ICS 100% (Danger)')
     axes[1].axhline(150, linestyle='--', color='orange', alpha=0.5, label='K-ICS 150% (Safe)')
     axes[1].fill_between(range(len(kics_dynamic)), 0, 100, alpha=0.1, color='red')
@@ -194,7 +194,7 @@ def run_solvency_analysis():
     
     # Plot 3: Hedge Ratio
     axes[2].plot(hedge_100, label='100% Hedge', color='gray', lw=2)
-    axes[2].plot(hedge_dynamic, label='Dynamic Shield', color='green', lw=2)
+    axes[2].plot(hedge_dynamic, label='K-ICS 동적 환헤지', color='green', lw=2)
     axes[2].set_title('Hedge Ratio Over Time')
     axes[2].set_ylabel('Hedge Ratio')
     axes[2].set_xlabel('Days')

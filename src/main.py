@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Dynamic Shield v3.0 - 통합 실행 스크립트
+K-ICS 동적 환헤지 v3.0 - 통합 실행 스크립트
 =========================================
 CLI 기반 오케스트레이션
 
@@ -271,7 +271,7 @@ def run_all(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Dynamic Shield v3.0 - K-ICS 연계형 동적 환헤지 최적화',
+        description='K-ICS 동적 환헤지 v3.0 - K-ICS 연계형 동적 환헤지 최적화',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 예시:
@@ -324,7 +324,7 @@ def main():
     }
     
     print("=" * 60)
-    print("Dynamic Shield v3.0")
+    print("K-ICS 동적 환헤지 v3.0")
     print("Capital Optimization, not Prediction")
     print("=" * 60)
     

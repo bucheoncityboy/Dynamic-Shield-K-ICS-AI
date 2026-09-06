@@ -314,7 +314,7 @@ def run_full_validation() -> Dict[str, Any]:
     전체 시스템 검증 실행
     """
     print("=" * 70)
-    print("Dynamic Shield v3.0 - 시스템 검증")
+    print("K-ICS 동적 환헤지 v3.0 - 시스템 검증")
     print("=" * 70)
     
     results = {}

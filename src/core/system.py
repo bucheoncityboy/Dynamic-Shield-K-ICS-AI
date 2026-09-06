@@ -8,7 +8,7 @@ from regime import RegimeClassifier
 
 class DynamicShieldSystem:
     """
-    Dynamic Shield 통합 시뮬레이션 환경 (Environment)
+    K-ICS 동적 환헤지 통합 시뮬레이션 환경 (Environment)
     - 데이터: Dynamic_Shield_Data_v5.csv (Real Data)
     - 엔진: K-ICS Calculator, Regime Classifier
     """
@@ -122,7 +122,7 @@ class DynamicShieldSystem:
 
 if __name__ == "__main__":
     # 간단 테스트
-    print("=== Dynamic Shield System Test (Real Data) ===")
+    print("=== K-ICS 동적 환헤지 System Test (Real Data) ===")
     env = DynamicShieldSystem()
     state = env.reset()
     print(f"Start Date: {env.dates[0]}")

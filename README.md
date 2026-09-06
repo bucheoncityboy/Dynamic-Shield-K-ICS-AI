@@ -1,4 +1,4 @@
-# Dynamic Shield: K-ICS 동적 환헤지 최적화 시스템
+# K-ICS 동적 환헤지 최적화 시스템
 
 ## 📄 연구 보고서
 
@@ -39,9 +39,9 @@ SCR_total = √(SCR_mkt² + SCR_fx² + 2ρ × SCR_mkt × SCR_fx)
 | 100% Hedge | -0.30% | 0.00 | -0.59% | 0.00 | 0.1000 | -0.60억 |
 | 80% Fixed | -0.23% | -9.68 | -0.70% | 0.25 | 0.1012 | -0.36억 |
 | Rule-based | +0.11% | -4.23 | -0.93% | 0.65 | 0.1022 | -0.11억 |
-| **Dynamic Shield** | -0.29% | **-4.23** | -1.81% | **2.26** | **0.1040** | **+0.08억** |
+| **K-ICS 동적 환헤지** | -0.29% | **-4.23** | -1.81% | **2.26** | **0.1040** | **+0.08억** |
 
-Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고, RCR과 Avg SCR도 가장 좋았다.
+K-ICS 동적 환헤지만 유일하게 순이익(+0.08억)을 냈고, RCR과 Avg SCR도 가장 좋았다.
 
 ![백테스트 결과](backtest_result_ai.png)
 
@@ -53,7 +53,7 @@ Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고, RCR과 Avg SCR도 
 |---|---|---|
 | 100% Hedge | 1,449.6% | 1,449.6% |
 | 80% Fixed | 1,159.5% | 1,212.9% |
-| **Dynamic Shield** | **1,437.0%** | **1,547.1%** |
+| **K-ICS 동적 환헤지** | **1,437.0%** | **1,547.1%** |
 
 위기 구간에서도 K-ICS 비율을 100% 이상 유지했다.
 
@@ -66,7 +66,7 @@ Dynamic Shield만 유일하게 순이익(+0.08억)을 냈고, RCR과 Avg SCR도 
 ### 아키텍처
 
 <p align="center">
-  <img src="ds_architecture.png" alt="Dynamic Shield Architecture" width="860"/>
+  <img src="ds_architecture.png" alt="K-ICS 동적 환헤지 시스템 아키텍처" width="860"/>
 </p>
 
 

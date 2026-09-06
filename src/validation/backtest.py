@@ -1,7 +1,7 @@
 """
 Phase 5.4: Walk-Forward Backtesting & Performance Analysis
 ===========================================================
-Dynamic Shield v3.0의 정량적 성과 검증 (Real AI Inference Ver.)
+K-ICS 동적 환헤지 v3.0의 정량적 성과 검증 (Real AI Inference Ver.)
 - Walk-Forward Backtesting
 - 4가지 전략 비교
 - **Real AI Inference (Auto-detect Model Path)**
@@ -61,7 +61,7 @@ def strategy_rule_based(vix, current_ratio):
     else:
         return 0.5
 
-# ④ Dynamic Shield (Mimic Logic) - 모델 로드 실패 시 폴백용
+# ④ K-ICS 동적 환헤지 (Mimic Logic) - 모델 로드 실패 시 폴백용
 def strategy_dynamic_shield_fallback(vix, current_ratio):
     if vix >= 30:
         target = 1.0
@@ -121,7 +121,7 @@ class BacktestEngine:
             '100% Hedge': strategy_100_hedge,
             '80% Fixed': strategy_80_fixed,
             'Rule-based': strategy_rule_based,
-            'Dynamic Shield': self.strategy_real_ai_inference # AI 메서드 연결
+            'K-ICS 동적 환헤지': self.strategy_real_ai_inference # AI 메서드 연결
         }
         
     def strategy_real_ai_inference(self, vix, current_ratio, correlation, scr_ratio):
@@ -156,7 +156,7 @@ class BacktestEngine:
     def run_backtest(self, market_data, strategy_name):
         """단일 전략 백테스트"""
         strategy_func = self.strategies[strategy_name]
-        is_ai_strategy = (strategy_name == 'Dynamic Shield')
+        is_ai_strategy = (strategy_name == 'K-ICS 동적 환헤지')
         
         results = []
         current_ratio = 0.5  # 초기 헤지 비율

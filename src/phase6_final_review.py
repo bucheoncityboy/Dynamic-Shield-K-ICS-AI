@@ -1,7 +1,7 @@
 """
 Phase 6: Final Review & Packaging (최종 점검)
 =============================================
-Dynamic Shield v3.0 - 최종 검증 체크리스트
+K-ICS 동적 환헤지 v3.0 - 최종 검증 체크리스트
 
 핵심 철학: Capital Optimization, not Prediction
 (환율 예측이 아닌 자본 최적화)

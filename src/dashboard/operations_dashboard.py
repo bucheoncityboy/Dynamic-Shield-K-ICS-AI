@@ -1,5 +1,5 @@
 """
-Dynamic Shield Operations Dashboard
+K-ICS 동적 환헤지 Operations Dashboard
 ====================================
 3가지 핵심 운영 기능을 시각화하는 종합 대시보드
 
@@ -41,7 +41,7 @@ except ImportError:
 # 페이지 설정
 # ==========================================
 st.set_page_config(
-    page_title="Dynamic Shield Control Center",
+    page_title="K-ICS 동적 환헤지 Control Center",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -199,7 +199,7 @@ def calculate_kics_ratio(hedge_ratio, correlation):
 # ==========================================
 # 헤더
 # ==========================================
-st.markdown('<div class="main-header">🛡️ Dynamic Shield Control Center</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">🛡️ K-ICS 동적 환헤지 Control Center</div>', unsafe_allow_html=True)
 
 # 현재 시간 표시
 col1, col2, col3 = st.columns([2, 1, 1])

@@ -1,4 +1,4 @@
-# Dynamic Shield K-ICS AI - 필수 의존성 패키지
+# K-ICS 동적 환헤지 K-ICS AI - 필수 의존성 패키지
 # Python 3.9 이상 권장 (3.11 최적)
 
 # 딥러닝 프레임워크

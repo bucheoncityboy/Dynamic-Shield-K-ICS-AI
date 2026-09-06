@@ -18,7 +18,7 @@ except ImportError:
 
 class DynamicShieldAgent:
     """
-    Dynamic Shield 에이전트
+    K-ICS 동적 환헤지 에이전트
     
     구조:
     1. Generator: 최적 액션 제안 (AI 또는 Rule-based)
